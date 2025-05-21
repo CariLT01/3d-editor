@@ -1,5 +1,3 @@
-#version 330 core
-
 precision highp float;
 uniform vec2 uResolution;
 uniform float uTime;
@@ -7,23 +5,38 @@ uniform vec3 uCamPos;
 uniform mat4 uProjInv;
 uniform mat4 uCamWorldMat;
 
-uniform vec3 uBoxCenters[];
-uniform vec3 uBoxExtents[];
-uniform float uBoxPairs[];
+uniform sampler2D uBoxData;
+uniform int uBoxCount;
 
-uniform vec3 uSphereCenters[];
-uniform vec3 uSphereRadius[];
-uniform float uSpherePairs[];
+vec4 getBoxPixel(int index, int pixelOffset, int totalPixels) {
+  float x = (float(index * 3 + pixelOffset) + 0.5) / float(totalPixels); // UPDATE WHEN NUMBER OF PIXELS CHANGES
+  return texture(uBoxData, vec2(x, 0.5));
+}
 
 // SDF for a sphere
 float sphereSDF(vec3 p, vec3 c, float r) {
     return length(p - c) - r;
 }
-
-float boxSDF(vec3 p, vec3 b) {
-  vec3 q = abs(p) - b;
-  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+vec3 rotateByQuat(vec3 v, vec4 q) {
+    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
 }
+
+float SDFBox(vec3 p, vec3 center, vec3 size, vec4 rotation) {
+    // Transform p into the box's local space
+    vec3 local = p - center;
+
+    // Normalize rotation to ensure it is a unit quaternion
+    vec4 q = normalize(rotation);
+    vec4 invQ = vec4(-q.xyz, q.w);
+
+    // Apply the inverse rotation
+    vec3 rotated = rotateByQuat(local, invQ);
+
+    // Compute signed distance to axis-aligned box
+    vec3 d = abs(rotated) - size;
+    return length(max(d, 0.0)) + min(max(d.x, max(d.y, d.z)), 0.0);
+}
+
 
 float smoothMin(float d1, float d2, float k) {
     float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
@@ -36,18 +49,28 @@ float map(in vec3 p) {
     //float box = boxSDF(p - vec3(1.5), vec3(1));
     //return smoothMin(sphere, box, mod(uTime, 10.0));
     float sdf = 9999.0;
-    for (int i = 0; i < boxCenters.length() - 1; i++) {
-        float box = boxSDF(p - boxCenters[i], boxExtents[i]);
-        if (boxPairs[i] > 0.0) {
-            sdf = smoothMin(sdf, box, boxPairs[i]);
+    int len = uBoxCount;
+    for (int i = 0; i < len; i++) {
+        vec4 p0 = getBoxPixel(i, 0, len * 3);
+        vec4 p1 = getBoxPixel(i, 1, len * 3);
+        vec4 p2 = getBoxPixel(i, 2, len * 3);
+        // PosX, PosY, PosZ, SizeX, SizeY, SizeZ, QX, QY, QZ, QW           MorphFactor
+        // R-----G-----B-----A||||||R------G------B---A|||R---G------------B----------A(Padding)
+        float box = SDFBox(p, vec3(p0.r, p0.g, p0.b), vec3(p0.a, p1.r, p1.g), vec4(p1.b, p1.a, p2.r, p2.g));
+        if (p2.b > 0.0) {
+            sdf = smoothMin(sdf, box, p2.b);
         } else {
-            if (boxPairs[i] == 0.0) {
+            if (p2.b == 0.0) {
                 sdf = min(sdf, box);
-            } else if (boxPairs[i] == -1.0) {
+            } else if (p2.b == -1.0) {
                 sdf = max(sdf, box);
+            } else if (p2.b == -0.5) {
+                sdf = max(-sdf, box);
             }
         }
     }
+
+    return sdf;
 }
 
 // Compute normal via gradient
@@ -104,13 +127,17 @@ void main() {
         if(t > MAX_DIST) break;
     }
     
-    vec3 col = vec3(0.0);
+    vec3 col = vec3(-1.0);
     if(d < EPS) {
         vec3 p = ro + rd * t;
         vec3 n = getNormal(p);
         float dif = lighting(p, n);
         col = vec3(dif);
     }
+    if (col != vec3(-1.0)) {
+        gl_FragColor = vec4(col, 1.0);
+    } else {
+        gl_FragColor = vec4(0.0);
+    }
     
-    gl_FragColor = vec4(col, 1.0);
 }
