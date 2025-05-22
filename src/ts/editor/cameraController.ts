@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
-const FORWARD_MOVEMENT_SPEED = 0.1;
+const FORWARD_MOVEMENT_SPEED = 0.2;
 const ROTATION_SPEED = 6;
 const WHEEL_MOVEMENT_SPEED = 1.3;
-const MOUSE_PAN_SPEED = 0.02;
+const MOUSE_PAN_SPEED = 15;
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
@@ -32,9 +32,11 @@ export class CameraController {
 
     private initializeKeyboardEvents() {
         document.addEventListener("keydown", (event: KeyboardEvent) => {
+            if (event.ctrlKey == true) return;
             this.keysPressed[event.code] = true;
         });
         document.addEventListener("keyup", (event: KeyboardEvent) => {
+            if (event.ctrlKey == true) return;
             this.keysPressed[event.code] = false;
         })
     }
@@ -149,32 +151,40 @@ export class CameraController {
 
     }
     private mousePanUpdate() {
-        if (this.middleMouseButtonPressed == false) {
+        if (!this.middleMouseButtonPressed) {
+            document.body.style.cursor = "default";
             return;
         }
+        document.body.style.cursor = "move";
 
-        // 1. get camera forward
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward).normalize();
 
-        // 2. compute right = forward × worldUp
         const worldUp = new THREE.Vector3(0, 1, 0);
         const right = new THREE.Vector3().crossVectors(forward, worldUp).normalize();
-
-        // 3. compute up = right × forward   ← this now lies in the view‑plane
         const up = new THREE.Vector3().crossVectors(right, forward).normalize();
 
-        // 4. build pan offset
-        const offset = new THREE.Vector3()
-            .addScaledVector(right, -this.mouseMovementX * MOUSE_PAN_SPEED)
-            .addScaledVector(up, this.mouseMovementY * MOUSE_PAN_SPEED);
-
-        // 5. apply to both position and target (so lookAt stays fixed)
+        // Get distance from camera to target point (forward direction)
         const target = new THREE.Vector3();
-        this.camera.getWorldDirection(forward);
         target.copy(this.camera.position).add(forward);
+        const distance = this.camera.position.distanceTo(target);
 
-        this.camera.position.add(offset);
+        // Calculate vertical field of view in radians
+        const fov = THREE.MathUtils.degToRad(this.camera.fov);
+
+        // Calculate height of visible area at the distance of the target
+        const viewportHeight = 2 * distance * Math.tan(fov / 2);
+
+        // Convert mouse movement (pixels) to normalized device coordinates [-1,1]
+        const ndcY = (this.mouseMovementY / window.innerHeight) * viewportHeight;
+        const ndcX = (this.mouseMovementX / window.innerWidth) * viewportHeight * (window.innerWidth / window.innerHeight);
+
+        // Multiply by -1 on X to match your original direction
+        const offset = new THREE.Vector3()
+            .addScaledVector(right, -ndcX)
+            .addScaledVector(up, ndcY);
+
+        this.camera.position.add(offset.multiplyScalar(MOUSE_PAN_SPEED));
         target.add(offset);
     }
 

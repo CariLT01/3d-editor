@@ -12,6 +12,7 @@
   "dependencies": {
     "stats.js": "^0.17.0",
     "three": "^0.176.0",
+    "three-csg-ts": "^3.2.0",
     "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",
     "webpack": "^5.99.8"

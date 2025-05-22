@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,10 +10,172 @@
         body {
             padding: 0;
             margin: 0;
+            background-color: black;
+        }
+
+        .toolbar {
+            background-color: transparent;
+            position: fixed;
+            z-index: 2147483647;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: max(65px, 7vh);
+            display: flex;
+            border-left: 1px solid white;
+        }
+        .toolbar-category {
+            display: flex;
+            flex-direction: column;
+            height: max(65px, 7vh);
+        }
+        .toolbar-category-items {
+            display: flex;
+            gap: 2.5px;
+            flex-grow:  1;
+            border-right: 1px solid white;
+            border-bottom: 1px solid white;
+        }
+        .toolbar-category-label {
+            color: white;
+            width: 100%;
+            text-align: center;
+            border-bottom: 1px solid white;
+        }
+
+        .toolbar-button {
+            display: flex;
+            flex-direction: column;
+            width: 4rem;
+            align-items: center;
+            justify-content: center;
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+        }
+
+        .toolbar-button-icon {
+            width: 1.5rem;
+            height: 1.5rem;
+            filter: invert(100%);
+            object-fit: contain;
+        }
+
+        .toolbar-button-text {
+            color: white;
+        }
+
+        .explorer {
+            position: fixed;
+            right: 1px;
+            top: 0;
+            height: 100%;
+            border: 1px solid black;
+            width: 10vw;
+
+        }
+
+        .tree,
+        .tree ul {
+            list-style: none;
+            padding-left: 1rem;
+            margin: 0;
+            font-size: 0.75rem;
+        }
+
+        .tree li {
+            position: relative;
+            padding-left: 0.75rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tree li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0.75em;
+            width: 0.75rem;
+            height: 1px;
+            background: #ccc;
         }
     </style>
 </head>
+
 <body>
-    
+    <div class="toolbar">
+        <div class="toolbar-category">
+            <span class="toolbar-category-label">Computational Solid Geometry</span>
+            <div class="toolbar-category-items">
+                <button id="union" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/379286/union.svg" alt="" class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Union</span>
+                </button>
+                <button id="subtract" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/489162/subtract.svg" alt="" class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Subtract</span>
+
+                </button>
+                <button id="intersect" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/239888/intersecting-intersection.svg" alt=""
+                        class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Intersect</span>
+                </button>
+                <button id="seperate" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/341066/split.svg" alt="" class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Seperate</span>
+                </button>
+            </div>
+
+        </div>
+        <div class="toolbar-category">
+            <span class="toolbar-category-label">New solid</span>
+            <div class="toolbar-category-items">
+                <button id="cube" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/532930/cube.svg" alt="" class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Cube</span>
+                </button>
+                <button id="sphere" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/221292/sphere.svg" alt="" class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Sphere</span>
+
+                </button>
+                <button id="cylinder" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/333878/cylinder.svg" alt=""
+                        class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Cylinder</span>
+                </button>
+                <button id="wedge" class="toolbar-button">
+                    <img src="https://www.svgrepo.com/show/364326/cell-signal-none-fill.svg" alt="" class="toolbar-button-icon">
+                    <span class="toolbar-button-text">Wedge</span>
+                </button>
+            </div>
+
+        </div>
+
+
+    </div>
+    <div class="explorer">
+        <ul class="tree">
+            <li>Parent
+                <ul>
+                    <li><button>
+
+                        </button></li>
+                    <li>Child 2
+                        <ul>
+                            <li>Grandchild
+                                <ul>
+                                    <li>Grand grand child</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
 </body>
+
 </html>
