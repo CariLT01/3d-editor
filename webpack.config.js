@@ -29,5 +29,5 @@ module.exports = {
       template: './src/html/index.html', // Your HTML template
     }),
   ],
-  mode: 'development',
+  mode: 'production',
 };
