@@ -196,15 +196,27 @@ export class CustomTransformControls {
             }
         }
 
-        if (this.axisClicked == "negativeX" || this.axisClicked == "positiveX") {
-            this.dragAxis.set(1, 0, 0);
+        switch (this.axisClicked) {
+            case 'positiveX':
+                this.dragAxis.set(1, 0, 0);
+                break;
+            case 'negativeX':
+                this.dragAxis.set(-1, 0, 0);
+                break;
+            case 'positiveY':
+                this.dragAxis.set(0, 1, 0);
+                break;
+            case 'negativeY':
+                this.dragAxis.set(0, -1, 0);
+                break;
+            case 'positiveZ':
+                this.dragAxis.set(0, 0, 1);
+                break;
+            case 'negativeZ':
+                this.dragAxis.set(0, 0, -1);
+                break;
         }
-        if (this.axisClicked == "negativeY" || this.axisClicked == "positiveY") {
-            this.dragAxis.set(0, 1, 0);
-        }
-        if (this.axisClicked == "negativeZ" || this.axisClicked == "positiveZ") {
-            this.dragAxis.set(0, 0, 1);
-        }
+
 
         this.startMouseX = mousex;
         this.startMouseY = mousey;
@@ -313,28 +325,36 @@ export class CustomTransformControls {
 
             if (this.mode === "translate") {
                 this.selectedObject.position.add(snappedMoveDelta);
-            } else if (this.mode === "scale") {
+            } if (this.mode === "scale") {
+                // Get absolute scale direction based on axis
+                const scaleDirection = new THREE.Vector3().copy(this.dragAxis).normalize();
 
-
-
-                let scaleAmount = moveDelta.dot(this.dragAxis);
-
-                // Reverse if dragging negative axis
-                if (
-                    this.axisClicked === "negativeX" ||
-                    this.axisClicked === "negativeY" ||
-                    this.axisClicked === "negativeZ"
-                ) {
-                    scaleAmount *= -1;
-                }
-
+                // Calculate scale delta
+                const scaleAmount = moveDelta.dot(scaleDirection);
                 const snappedScale = Math.round(scaleAmount / snapToUse) * snapToUse;
-                const scaleDelta = this.dragAxis.clone().multiplyScalar(snappedScale);
-                this.selectedObject.scale.add(scaleDelta);
 
-                this.selectedObject.position.add(
-                    scaleDelta.clone().multiplyScalar(0.5)
-                ); // Centered scale
+                // Apply scaling relative to object's current scale
+                const newScale = this.selectedObject.scale.clone().add(
+                    scaleDirection.multiplyScalar(snappedScale)
+                );
+
+                // Prevent inversion by clamping scale values
+                newScale.x = Math.max(newScale.x, 0.001);
+                newScale.y = Math.max(newScale.y, 0.001);
+                newScale.z = Math.max(newScale.z, 0.001);
+
+                this.selectedObject.scale.copy(newScale);
+
+                // For uncentered scaling, adjust position based on scale delta
+                const worldScaleAxis = new THREE.Vector3()
+                    .copy(scaleDirection)
+                    .applyQuaternion(this.selectedObject.quaternion);
+
+                const offset = worldScaleAxis.multiplyScalar(snappedScale * 0.5);
+                if (this.dragAxis.x < 0 || this.dragAxis.y < 0 || this.dragAxis.z < 0) {
+                    offset.negate();
+                }
+                this.selectedObject.position.add(offset);
             }
         }
     }

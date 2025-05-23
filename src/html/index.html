@@ -24,6 +24,7 @@
             height: auto;
             display: flex;
             border-left: 1px solid white;
+            user-select: none;
         }
 
         .toolbar-category {
@@ -79,24 +80,29 @@
             border: 1px solid black;
             width: max(200px, 10vw);
             z-index: 2147483647;
+            user-select: none;
 
         }
 
         .tree,
         .tree ul {
             list-style: none;
-            padding-left: 1rem;
+            padding-left: 0.2rem;
             margin: 0;
             font-size: 0.75rem;
             color: white;
         }
+        #tree ul {
+            padding-left: 0.5rem;
+        }
 
-        .tree li {
+        #tree li {
             position: relative;
-            padding-left: 0.75rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            margin-top: -1px;
+            list-style: none;
         }
 
         .tree li::before {
@@ -141,8 +147,108 @@
             justify-content: center;
             align-items: center;
         }
+
         .tree-highlighted {
-            background-color: blue;
+            background-color: white !important;
+            color: black !important;
+            border :1px solid black !important;
+        }
+        .tree-item {
+            width: 100%;
+            color: white;
+            border: 1px solid white;
+            background-color: transparent;
+            border-radius: none;
+            cursor: pointer;
+            text-align: left;
+            margin-top: -1px;
+        }
+        .tree-item:focus {
+            outline: none;
+        }
+
+        /* Bottom toolbar */
+        .bottom-toolbar {
+            position: fixed;
+            bottom: 5px;
+            left: 10px;
+            width: 50vw;
+            height: max(3vh, 50px);
+        }
+
+        .bottom-buttons-list {
+            display: flex;
+            gap: 5px;
+        }
+
+        .bottom-button-with-icon {
+            width: auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            border: 1px solid white;
+            border-radius: 6px;
+            background-color: transparent;
+            backdrop-filter: blur(8px);
+            color: white;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .bottom-button-active {
+            background-color: white;
+            color: black;
+            backdrop-filter: none !important;
+        }
+
+        .bottom-button-icon {
+            width: 2rem;
+            height: 2rem;
+            filter: invert(100%);
+        }
+
+        .icon-smaller {
+            width: 1.5rem !important;
+            height: 1.5rem !important;
+            margin-right: 3px;
+        }
+
+        .bottom-button-active .bottom-button-icon {
+            filter: none !important;
+        }
+
+        .bottom-button-active .key-bg {
+            filter: none !important;
+        }
+
+        .bottom-button-active .key {
+            color: black !important;
+        }
+
+        .bottom-button-text {
+            font-size: 1rem;
+        }
+
+        .bottom-button-key {
+            width: 2rem;
+            height: 2rem;
+            position: relative;
+            margin-left: 3px;
+
+        }
+
+        .key-bg {
+            width: 100%;
+            height: 100%;
+            filter: invert(100%);
+        }
+
+        .key {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.7rem;
         }
     </style>
 </head>
@@ -150,7 +256,7 @@
 <body>
     <div class="toolbar">
         <div class="toolbar-category">
-            <span class="toolbar-category-label">Computational Solid Geometry</span>
+            <span class="toolbar-category-label">Constructive Solid Geometry</span>
             <div class="toolbar-category-items">
                 <button id="union" class="toolbar-button">
                     <img src="https://www.svgrepo.com/show/379286/union.svg" alt="" class="toolbar-button-icon">
@@ -238,24 +344,42 @@
 
     </div>
     <div class="explorer" id="tree">
-        <ul class="tree">
-            <li>Parent
-                <ul>
-                    <li><button>
-
-                        </button></li>
-                    <li>Child 2
-                        <ul>
-                            <li>Grandchild
-                                <ul>
-                                    <li>Grand grand child</li>
-                                </ul>
-                            </li>
-                        </ul>
-                    </li>
-                </ul>
-            </li>
-        </ul>
+        <div>
+            <ul>
+                <li><button class="tree-highlighted tree-item"
+                        data-node-id="1ae6d7ed-e445-4481-8d04-012a8bd625ed">Solid</button></li>
+            </ul>
+        </div>
+    </div>
+    <div class="bottom-toolbar">
+        <div class="bottom-buttons-list">
+            <button class="bottom-button-with-icon" id="localspace">
+                <img src="https://www.svgrepo.com/show/369740/axis-x.svg" alt="" class="bottom-button-icon">
+                <span class="bottom-button-text">Local space</span>
+                <div class="bottom-button-key">
+                    <img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg">
+                    <span class="key">L</span>
+                </div>
+            </button>
+            <button class="bottom-button-with-icon" id="resetPivot">
+                <img src="https://www.svgrepo.com/show/509267/target.svg" alt=""
+                    class="bottom-button-icon icon-smaller">
+                <span class="bottom-button-text">Reset pivot</span>
+                <div class="bottom-button-key">
+                    <img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg">
+                    <span class="key">P</span>
+                </div>
+            </button>
+            <button class="bottom-button-with-icon" id="hideSolids">
+                <img src="https://cdn3.iconfinder.com/data/icons/google-material-design-icons/48/ic_visibility_48px-512.png" alt=""
+                    class="bottom-button-icon icon-smaller">
+                <span class="bottom-button-text">Toggle visiblity</span>
+                <div class="bottom-button-key">
+                    <img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg">
+                    <span class="key">V</span>
+                </div>
+            </button>
+        </div>
     </div>
 </body>
 

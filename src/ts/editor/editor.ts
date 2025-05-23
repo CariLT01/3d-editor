@@ -1,27 +1,27 @@
-import * as THREE from 'three';
-import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import Stats from 'stats.js';
-import { CameraController } from './cameraController';
-import { Solid } from './csg/objects/solid';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
+import * as THREE from "three";
+import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import Stats from "stats.js";
+import { CameraController } from "./cameraController";
+import { Solid } from "./csg/objects/solid";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 
-import { encode, decode } from '@msgpack/msgpack'
-import { inflateSync, deflateSync } from 'fflate';
+import { encode, decode } from "@msgpack/msgpack";
+import { inflateSync, deflateSync } from "fflate";
 
-import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 
 function degToRad(deg: number) {
-    return deg * Math.PI / 180;
+    return (deg * Math.PI) / 180;
 }
 
 interface ExportedData {
-    mesh: any;          // Replace `any` with the actual type returned by toJSON()
+    mesh: any; // Replace `any` with the actual type returned by toJSON()
     history: ExportedData[];
 }
 type EditorState = { [key: string]: Solid };
@@ -41,19 +41,17 @@ interface TreeNode extends FlatNode {
  * Renders a nested <ul><li> tree from a flat map of nodes.
  */
 
-
 function getAllMeshes(object: THREE.Object3D): THREE.Mesh[] {
     const meshes: THREE.Mesh[] = [];
     object.children.forEach((child) => {
         console.log(child);
-        meshes.push(child as THREE.Mesh)
+        meshes.push(child as THREE.Mesh);
     });
     console.log(meshes.length);
     return meshes;
 }
 
 export class Editor3d {
-
     camera!: THREE.PerspectiveCamera;
     scene!: THREE.Scene;
     renderer!: THREE.WebGLRenderer;
@@ -66,6 +64,10 @@ export class Editor3d {
     controls!: CameraController;
     arrowHelper!: TransformControls;
     isMoving: boolean = false;
+    arrowHelperSelectedMesh: THREE.Mesh | null = null;
+    isLocalSpace: boolean = true;
+    scaleStart: THREE.Vector3 = new THREE.Vector3();
+    positionStart: THREE.Vector3 = new THREE.Vector3();
     // Other
     stats!: Stats;
     currentSolidFound: Solid | null = null;
@@ -76,25 +78,47 @@ export class Editor3d {
     // Undo
     undoStack: EditorState[] = [];
     redoStack: EditorState[] = [];
-    undoStackTree: { [key: string]: { id: string, name: string, parentId: string | null, type: string } }[] = [];
-    redoStackTree: { [key: string]: { id: string, name: string, parentId: string | null, type: string } }[] = [];
+    undoStackTree: {
+        [key: string]: {
+            id: string;
+            name: string;
+            parentId: string | null;
+            type: string;
+        };
+    }[] = [];
+    redoStackTree: {
+        [key: string]: {
+            id: string;
+            name: string;
+            parentId: string | null;
+            type: string;
+        };
+    }[] = [];
 
     previousRaycastedMesh: THREE.Mesh | null = null;
 
-    solidsTree: { [key: string]: { id: string, name: string, parentId: string | null, type: string } } = {};
-
+    solidsTree: {
+        [key: string]: {
+            id: string;
+            name: string;
+            parentId: string | null;
+            type: string;
+        };
+    } = {};
 
     constructor() {
         console.log("Creating new instance of Editor3D");
     }
     initialize() {
-
         this.initializeBasics();
         this.initializeLighting();
         this.initializeControls();
         this.initializeWindowEvents();
         this.initializeStatistics();
         this.initializeHelpers();
+
+        this.bottomToolbarButtonsInitialize();
+
         this.initializeMouseEvents();
         this.initializeKeyboardEvents();
         this.initializeControlsEvents();
@@ -102,9 +126,7 @@ export class Editor3d {
         this.initializeButtonEvents();
         this.initializeImport3DbuttonEvent();
         this.initializeImportSceneEvent();
-
     }
-
 
     private renderTree(
         solidsTree: Record<string, FlatNode>,
@@ -129,11 +151,12 @@ export class Editor3d {
 
         // 3) Recursively build UL/LI structure
         let buildList = (nodes: TreeNode[]) => {
-            const ul = document.createElement('ul');
+            const ul = document.createElement("ul");
             for (const node of nodes) {
-                const li = document.createElement('li');
+                const li = document.createElement("li");
                 const btn = document.createElement("button");
-                if (highlighted[node.id]) btn.classList.add('tree-highlighted');
+                if (highlighted[node.id]) btn.classList.add("tree-highlighted");
+                btn.classList.add("tree-item");
                 btn.textContent = node.name;
                 btn.dataset.nodeId = node.id;
                 li.appendChild(btn);
@@ -146,14 +169,14 @@ export class Editor3d {
                         if (node.type != "group") {
                             console.error("No solid, but not a group");
                             return;
-                        };
+                        }
 
                         // Check children
                         let numChildren = 0;
                         for (const memberId in this.solidsTree) {
                             const member = this.solidsTree[memberId];
                             if (member.parentId == node.id) {
-                                console.log("Found: ", member.id)
+                                console.log("Found: ", member.id);
                                 numChildren++;
                                 break;
                             }
@@ -170,7 +193,7 @@ export class Editor3d {
                                 for (const memberId in this.solidsTree) {
                                     const member = this.solidsTree[memberId];
                                     if (member.parentId == toCheckNode.id) {
-                                        console.log("Found: ", member.id)
+                                        console.log("Found: ", member.id);
 
                                         const s = this.solids[member.id];
                                         if (s == null) {
@@ -180,13 +203,14 @@ export class Editor3d {
                                             } else {
                                                 continue;
                                             }
-                                            
-                                        };
+                                        }
                                         if (this.currentSolidsSelected.indexOf(s) === -1) {
                                             this.currentSolidsSelected.push(s);
                                         } else {
-                                            this.currentSolidsSelected.splice(this.currentSolidsSelected.indexOf(s), 1);
-
+                                            this.currentSolidsSelected.splice(
+                                                this.currentSolidsSelected.indexOf(s),
+                                                1
+                                            );
                                         }
                                         this.isMoving = true;
                                         this.updateTree();
@@ -197,13 +221,13 @@ export class Editor3d {
                                         }
                                     }
                                 }
-                            }
+                            };
 
                             selectAllDescendants(node);
                         }
 
                         return;
-                    };
+                    }
                     if (this.currentSolidsSelected.indexOf(solid) === -1) {
                         this.currentSolidsSelected.push(solid);
                         this.updateTree();
@@ -211,7 +235,10 @@ export class Editor3d {
                         this.determineArrowHelperState();
                         this.isMoving = true;
                     } else {
-                        this.currentSolidsSelected.splice(this.currentSolidsSelected.indexOf(solid), 1);
+                        this.currentSolidsSelected.splice(
+                            this.currentSolidsSelected.indexOf(solid),
+                            1
+                        );
                         this.updateTree();
                         this.updateOutlinePass();
                         this.determineArrowHelperState();
@@ -219,15 +246,15 @@ export class Editor3d {
                             this.isMoving = false;
                         }
                     }
-                })
+                });
 
                 ul.appendChild(li);
             }
             return ul;
-        }
+        };
 
         // wrap roots in a container (you can return the UL directly if you prefer)
-        const container = document.createElement('div');
+        const container = document.createElement("div");
         container.appendChild(buildList(roots));
         return container;
     }
@@ -245,13 +272,13 @@ export class Editor3d {
         if (!tree) {
             console.error("#tree not found;");
             return;
-        };
-        tree.innerHTML = '';
+        }
+        tree.innerHTML = "";
         const html = this.renderTree(this.solidsTree, this.buildHighlgihtedList());
         tree.appendChild(html);
     }
     private deleteSolid(solid: Solid) {
-        const index = this.solids[solid.getMesh().uuid]
+        const index = this.solids[solid.getMesh().uuid];
         if (index === null) {
             throw new Error("Solid does not exist");
         }
@@ -275,7 +302,7 @@ export class Editor3d {
             }
         }
         delete this.solids[solid.getMesh().uuid];
-        this.scene.remove(solid.getMesh());
+        this.scene.remove(solid.getGroup());
 
         this.updateTree();
     }
@@ -286,24 +313,22 @@ export class Editor3d {
     }
     private addSolid(object: Solid, parent: Solid | null) {
         this.solids[object.getMesh().uuid] = object;
-        if (parent === null) {
-
+        if (!parent) {
             this.solidsTree[object.getMesh().uuid] = {
                 parentId: null,
                 id: object.getMesh().uuid,
                 name: object.name,
-                type: "solid"
-            }
-
+                type: "solid",
+            };
         } else {
             this.solidsTree[object.getMesh().uuid] = {
                 parentId: parent.getMesh().uuid,
                 id: object.getMesh().uuid,
                 name: object.name,
-                type: "solid"
-            }
+                type: "solid",
+            };
         }
-        this.scene.add(object.getMesh());
+        this.scene.add(object.getGroup());
 
         this.updateTree();
     }
@@ -312,13 +337,11 @@ export class Editor3d {
         const cloned: { [key: string]: Solid } = {};
         for (const solidID in this.solids) {
             const solid = this.solids[solidID];
-            cloned[solid.getMesh().uuid] = solid.fullClone()
+            cloned[solid.getMesh().uuid] = solid.fullClone();
         }
         console.log("Added to undo stack ", cloned);
         this.undoStack.push(cloned);
         console.log(this.undoStack);
-
-
     }
 
     private undoAction() {
@@ -356,14 +379,23 @@ export class Editor3d {
         }
     }
 
+    private arrowHelperAttach(solid: Solid) {
+        this.arrowHelper.attach(solid.getGroup());
+        this.arrowHelperSelectedMesh = solid.getMesh();
+        this.bottomToolbarButtonSetVisibility("localspace", true);
+    }
+    private arrowHelperDetach() {
+        this.arrowHelper.detach();
+        this.arrowHelperSelectedMesh = null;
+        this.bottomToolbarButtonSetVisibility("localspace", false);
+    }
+
     private initializeBasics() {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         document.body.appendChild(this.renderer.domElement);
         this.renderer.setSize(innerWidth, innerHeight);
 
         this.composer = new EffectComposer(this.renderer);
-
-
 
         this.camera = new THREE.PerspectiveCamera();
         this.camera.position.set(0, 1, 5);
@@ -376,9 +408,7 @@ export class Editor3d {
         this.composer.addPass(renderPass);
 
         this.outlinePass = new OutlinePass(
-            new THREE.Vector2(
-                innerWidth, innerHeight
-            ),
+            new THREE.Vector2(innerWidth, innerHeight),
             this.scene,
             this.camera
         );
@@ -387,19 +417,18 @@ export class Editor3d {
         this.outlinePass.edgeGlow = 0;
         this.outlinePass.edgeThickness = 1;
         this.outlinePass.pulsePeriod = 3;
-        this.outlinePass.visibleEdgeColor.set('#00aaff');
-        this.outlinePass.hiddenEdgeColor.set('#00aaff');
+        this.outlinePass.visibleEdgeColor.set("#00aaff");
+        this.outlinePass.hiddenEdgeColor.set("#00aaff");
 
         this.outlinePass.renderToScreen = true;
         this.composer.addPass(this.outlinePass);
 
         /*const loader = new THREE.TextureLoader();
-        loader.load('https://threejs.org/examples/textures/tri_pattern.jpg', (texture) => {
-            this.outlinePass.usePatternTexture = true;
-            this.outlinePass.patternTexture = texture;
-            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        })*/
-
+            loader.load('https://threejs.org/examples/textures/tri_pattern.jpg', (texture) => {
+                this.outlinePass.usePatternTexture = true;
+                this.outlinePass.patternTexture = texture;
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            })*/
 
         this.scene.add(this.camera);
 
@@ -424,33 +453,189 @@ export class Editor3d {
 
     private initializeControls() {
         this.controls = new CameraController(this.camera);
-
     }
     private initializeWindowEvents() {
-        window.addEventListener('resize', () => {
+        window.addEventListener("resize", () => {
             this.renderer.setSize(innerWidth, innerHeight);
             this.camera.aspect = innerWidth / innerHeight;
             this.camera.updateProjectionMatrix();
-
         });
     }
+
+    // Function to adjust the mesh's position based on the selected axis
+    private transformControlsAdjustPivot(axis: string | null) {
+        /*if (axis == null) {
+                console.error("No axis");
+                return;
+            }
+            // Reset position to avoid cumulative offsets
+            if (!this.arrowHelperSelectedMesh) return;
+            this.arrowHelperSelectedMesh.geometry.computeBoundingBox();
+            if (this.arrowHelperSelectedMesh.geometry.boundingBox == null) return;
+            const localBox = this.arrowHelperSelectedMesh.geometry.boundingBox.clone();
+            const mesh = this.arrowHelperSelectedMesh;
+            if (!mesh) return;
+            mesh.position.set(0, 0, 0);
+    
+            switch (axis) {
+                case 'X':
+                    mesh.position.x = -localBox.max.x; // Scale from the right side
+                    break;
+                case 'Y':
+                    mesh.position.y = -localBox.max.y; // Scale from the top side
+                    break;
+                case 'Z':
+                    mesh.position.z = -localBox.max.z; // Scale from the front side
+                    break;
+                case 'XY':
+                    mesh.position.x = -localBox.max.x;
+                    mesh.position.y = -localBox.max.y; // Scale from the top-right corner
+                    break;
+                case 'YZ':
+                    mesh.position.y = -localBox.max.y;
+                    mesh.position.z = -localBox.max.z; // Scale from the top-front corner
+                    break;
+                case 'XZ':
+                    mesh.position.x = -localBox.max.x;
+                    mesh.position.z = -localBox.max.z; // Scale from the front-right corner
+                    break;
+                case 'XYZ':
+                    const center = localBox.getCenter(new THREE.Vector3());
+                    mesh.position.set(-center.x, -center.y, -center.z); // Scale from the center
+                    break;
+                
+                default:
+                    // No adjustment needed for unrecognized axes
+                    console.error("Unrecognized axes: ", axis);
+                    break;
+            }*/
+    }
+    private setBottomToolbarButton(id: string, state: boolean) {
+        const btn: HTMLButtonElement | null = document.querySelector(`#${id}`);
+        if (btn == null) {
+            throw new Error(`Button with id ${id} not found in bottom toolbar`);
+        }
+
+        if (state) {
+            if (btn.classList.contains("bottom-button-active") == false) {
+                btn.classList.add("bottom-button-active");
+            }
+        } else {
+            if (btn.classList.contains("bottom-button-active") == false) return;
+            btn.classList.remove("bottom-button-active");
+        }
+    }
+    private bottomToolbarButtonsInitialize() {
+        const localSpaceButton: HTMLButtonElement | null =
+            document.querySelector("#localspace");
+        if (!localSpaceButton) return;
+
+
+
+        localSpaceButton.addEventListener("click", () => {
+            this.isLocalSpace = !this.isLocalSpace;
+            this.setBottomToolbarButton("localspace", this.isLocalSpace);
+
+            if (this.isLocalSpace) {
+                this.arrowHelper.setSpace("local");
+            } else {
+                this.arrowHelper.setSpace("world");
+            }
+        });
+
+        const resetPivotButton: HTMLButtonElement | null = document.querySelector("#resetPivot");
+        if (!resetPivotButton) return;
+
+        resetPivotButton.addEventListener("click", () => {
+            if (this.currentSolidsSelected.length !== 1) return;
+            this.resetPivot(this.currentSolidsSelected[0].getMesh());
+        })
+
+        const hideSolidsButton: HTMLButtonElement | null = document.querySelector("#hideSolids");
+        if (!hideSolidsButton) return;
+        hideSolidsButton.addEventListener("click", () => {
+            for (const solid of this.currentSolidsSelected) {
+                if (this.scene.getObjectById(solid.getMesh().id) == null) {
+                    this.scene.add(solid.getMesh());
+                    console.log("Add mesh");
+                } else {
+                    this.scene.remove(solid.getMesh());
+                    console.log("Hide mesh");
+                }
+
+            }
+            this.currentSolidsSelected = [];
+            this.updateOutlinePass();
+            this.determineArrowHelperState();
+            this.updateTree();
+        })
+    }
+    private bottomToolbarButtonSetVisibility(id: string, visible: boolean) {
+        const btn: HTMLButtonElement | null = document.querySelector(`#${id}`);
+        if (btn == null) {
+            throw new Error(`Invalid: ${id}`);
+        }
+
+        if (visible) {
+            btn.style.display = "flex";
+        } else {
+            btn.style.display = "none";
+        }
+    }
+
     private initializeHelpers() {
         const gridHelper = new THREE.GridHelper(100, 200, 0x666666, 0x666666);
         this.scene.add(gridHelper);
 
-        const gridHelperMajorLines = new THREE.GridHelper(100, 200 / 10, 0xaaaaaa, 0xaaaaaa);
+        const gridHelperMajorLines = new THREE.GridHelper(
+            100,
+            200 / 10,
+            0xaaaaaa,
+            0xaaaaaa
+        );
         this.scene.add(gridHelperMajorLines);
 
         const axisHelper = new THREE.AxesHelper(50);
         axisHelper.position.set(0, 0.01, 0);
         this.scene.add(axisHelper);
 
-        this.arrowHelper = new TransformControls(this.camera, this.renderer.domElement);
+        this.arrowHelper = new TransformControls(
+            this.camera,
+            this.renderer.domElement
+        );
         this.arrowHelper.setMode("translate");
         this.arrowHelper.setRotationSnap(degToRad(5));
         this.arrowHelper.setTranslationSnap(0.05);
         this.arrowHelper.setScaleSnap(0.05);
+        this.arrowHelper.setSpace("local");
         this.scene.add(this.arrowHelper.getHelper());
+        this.setBottomToolbarButton("localspace", true);
+        this.bottomToolbarButtonSetVisibility("localspace", false);
+
+        /*// On drag start, record the initial scale
+        this.arrowHelper.addEventListener('mouseDown', () => {
+            if (this.arrowHelper.mode !== "scale") return;
+            this.scaleStart = this.arrowHelper.object.scale.clone();
+            this.positionStart = this.arrowHelper.object.position.clone();
+        });
+
+        // On object change, apply repositioning hack
+        this.arrowHelper.addEventListener('objectChange', () => {
+            if (this.arrowHelper.mode !== "scale") return;
+            const cube = this.arrowHelper.object;
+            const _tempVector2 = cube.scale.clone().divide(this.scaleStart);
+            cube.scale.copy(this.scaleStart).multiply(_tempVector2);
+
+            const _box = new THREE.Box3().setFromObject(cube);
+            const size = _box.getSize(new THREE.Vector3());
+
+            // Compute new offset to simulate scaling from side
+            const offset = new THREE.Vector3(size.x / 2, size.y / 2, size.z / 2);
+
+            // Apply offset relative to original position
+            cube.position.copy(this.positionStart).add(offset);
+        });*/
+
     }
     private initializeStatistics() {
         //this.stats = new Stats();
@@ -462,14 +647,18 @@ export class Editor3d {
         for (const solid of this.currentSolidsSelected) {
             a.push(solid.getMesh());
         }
-        console.log("OutlinePass: Updated total of ", this.currentSolidsSelected.length, " solids");
+        console.log(
+            "OutlinePass: Updated total of ",
+            this.currentSolidsSelected.length,
+            " solids"
+        );
         this.outlinePass.selectedObjects = a;
     }
     private determineArrowHelperState() {
         if (this.currentSolidsSelected.length === 1) {
-            this.arrowHelper.attach(this.currentSolidsSelected[0].getMesh());
+            this.arrowHelperAttach(this.currentSolidsSelected[0]);
         } else {
-            this.arrowHelper.detach();
+            this.arrowHelperDetach();
         }
     }
     private onClick(event: MouseEvent) {
@@ -477,27 +666,33 @@ export class Editor3d {
         if (this.currentSolidFound == null) {
             console.error("No box hit");
             return;
-        };
+        }
         if (this.isMoving == true && this.shiftHeldDown == false) {
-            console.error("Already moving")
+            console.error("Already moving");
             return;
-        };
+        }
         if (this.shiftHeldDown == true && this.currentSolidsSelected.length > 0) {
-            if (this.currentSolidsSelected.indexOf(this.currentSolidFound) != -1 && this.currentSolidsSelected.length > 1) {
+            if (
+                this.currentSolidsSelected.indexOf(this.currentSolidFound) != -1 &&
+                this.currentSolidsSelected.length > 1
+            ) {
                 // Remove from list
                 console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));
-                console.warn("Remove from list!")
-                this.currentSolidsSelected.splice(this.currentSolidsSelected.indexOf(this.currentSolidFound), 1);
+                console.warn("Remove from list!");
+                this.currentSolidsSelected.splice(
+                    this.currentSolidsSelected.indexOf(this.currentSolidFound),
+                    1
+                );
                 console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));
                 this.determineArrowHelperState();
                 this.isMoving = true;
                 this.updateOutlinePass();
                 this.updateTree();
                 return;
-            };
+            }
             this.currentSolidsSelected.push(this.currentSolidFound);
-            console.log(this.currentSolidFound)
-            this.arrowHelper.detach();
+            console.log(this.currentSolidFound);
+            this.arrowHelperDetach();
             this.isMoving = true;
             console.warn("Add to list");
             this.updateOutlinePass();
@@ -505,7 +700,7 @@ export class Editor3d {
             return;
         }
 
-        this.arrowHelper.attach(this.currentSolidFound.getMesh());
+        this.arrowHelperAttach(this.currentSolidFound);
         this.currentSolidsSelected = [this.currentSolidFound];
         this.isMoving = true;
         this.updateOutlinePass();
@@ -522,20 +717,30 @@ export class Editor3d {
         document.addEventListener("mousemove", (event: MouseEvent) => {
             this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        })
+        });
         document.addEventListener("mousedown", (event: MouseEvent) => {
             // Arrow hlper
             if (this.isMoving) {
                 this.getTransformControlsAxis();
             }
             this.onClick(event);
-
-
-        })
+        });
     }
     private initializeKeyboardEvents() {
         document.addEventListener("keydown", (event: KeyboardEvent) => {
-            if (event.ctrlKey && event.key.toLowerCase() === 'd') {
+            if (event.key.toLowerCase() === "l") {
+                event.preventDefault();
+                this.isLocalSpace = !this.isLocalSpace;
+                this.setBottomToolbarButton("localspace", this.isLocalSpace);
+                if (this.isLocalSpace) { this.arrowHelper.setSpace("local") }
+                else { this.arrowHelper.setSpace("world") }
+            }
+            if (event.key.toLowerCase() === 'P') {
+                event.preventDefault();
+                if (this.currentSolidsSelected.length !== 1) return;
+                this.resetPivot(this.currentSolidsSelected[0].getMesh());
+            }
+            if (event.ctrlKey && event.key.toLowerCase() === "d") {
                 event.preventDefault();
                 this.addToUndoStack();
                 // Your Ctrl + D logic here
@@ -552,24 +757,21 @@ export class Editor3d {
                     this.addSolid(newSolid, this.getParentOfSolid(solid));
                 }
 
-
-
                 this.currentSolidsSelected = duplicated;
 
                 this.updateOutlinePass();
 
                 if (this.currentSolidsSelected.length === 1) {
-                    this.arrowHelper.attach(this.currentSolidsSelected[0].getMesh());
+                    this.arrowHelperAttach(this.currentSolidsSelected[0]);
                     this.isMoving = true;
                 } else {
                     this.isMoving = true;
-                    this.arrowHelper.detach();
+                    this.arrowHelperDetach();
                 }
 
                 return;
-
             }
-            if (event.ctrlKey && event.key.toLowerCase() === 'g') {
+            if (event.ctrlKey && event.key.toLowerCase() === "g") {
                 if (this.currentSolidsSelected.length === 0) return;
                 const first = this.currentSolidsSelected[0];
                 const firstParent = this.solidsTree[first.getMesh().uuid].parentId;
@@ -588,7 +790,7 @@ export class Editor3d {
                     id: uuid,
                     parentId: firstParent,
                     name: "group",
-                    type: "group"
+                    type: "group",
                 };
 
                 this.solidsTree[uuid] = group;
@@ -598,12 +800,13 @@ export class Editor3d {
                 }
                 this.updateTree();
             }
-            if (event.ctrlKey && event.key.toLowerCase() === 'z') {
+            if (event.ctrlKey && event.key.toLowerCase() === "z") {
                 event.preventDefault();
-                console.log("Undo action!")
+                return;
+                console.log("Undo action!");
                 this.undoAction();
             }
-            if (event.ctrlKey && event.key.toLowerCase() === 'a') {
+            if (event.ctrlKey && event.key.toLowerCase() === "a") {
                 event.preventDefault();
                 // Select everything
                 this.currentSolidsSelected = [];
@@ -614,28 +817,45 @@ export class Editor3d {
                 this.updateOutlinePass();
 
                 if (this.currentSolidsSelected.length === 1) {
-                    this.arrowHelper.attach(this.currentSolidsSelected[0].getMesh());
+                    this.arrowHelperAttach(this.currentSolidsSelected[0]);
                     this.isMoving = true;
                 } else {
                     this.isMoving = true;
-                    this.arrowHelper.detach();
+                    this.arrowHelperDetach();
                 }
+                this.updateTree();
             }
-            if (event.key === 'Escape') {
+            if (event.key.toLowerCase() === 'v') {
+                for (const solid of this.currentSolidsSelected) {
+                    if (this.scene.getObjectById(solid.getMesh().id) == null) {
+                        this.scene.add(solid.getMesh());
+                        console.log("Add mesh");
+                    } else {
+                        this.scene.remove(solid.getMesh());
+                        console.log("Hide mesh");
+                    }
+
+                }
+                this.currentSolidsSelected = [];
+                this.updateOutlinePass();
+                this.determineArrowHelperState();
+                this.updateTree();
+            }
+            if (event.key === "Escape") {
                 if (this.isMoving == false) return;
-                this.arrowHelper.detach();
+                this.arrowHelperDetach();
                 this.currentSolidsSelected = [];
                 this.updateOutlinePass();
                 this.isMoving = false;
                 this.updateTree();
             }
-            if (event.key === '2') {
-                this.arrowHelper.setMode('translate');
+            if (event.key === "2") {
+                this.arrowHelper.setMode("translate");
             }
-            if (event.key === '4') {
-                this.arrowHelper.setMode('rotate');
+            if (event.key === "4") {
+                this.arrowHelper.setMode("rotate");
             }
-            if (event.key === '3') {
+            if (event.key === "3") {
                 this.arrowHelper.setMode("scale");
             }
             if (event.key === "Shift") {
@@ -644,7 +864,7 @@ export class Editor3d {
             if (event.key === "Delete") {
                 // de;ete
                 this.addToUndoStack();
-                this.arrowHelper.detach();
+                this.arrowHelperDetach();
                 for (const solid of this.currentSolidsSelected) {
                     //const a = this.solids.indexOf(solid);
                     const a = this.solids[solid.getMesh().uuid];
@@ -657,42 +877,24 @@ export class Editor3d {
                 }
                 this.currentSolidsSelected = [];
                 this.isMoving = false;
-
-
             }
-
-        })
+        });
 
         document.addEventListener("keyup", (event: KeyboardEvent) => {
             if (event.key === "Shift") {
                 this.shiftHeldDown = false;
             }
-        })
+        });
     }
     private initializeControlsEvents() {
         this.arrowHelper.addEventListener("change", () => {
             if (this.currentSolidsSelected.length !== 1) return;
-            if (this.arrowHelper.mode !== "scale") return;
-
-            const mesh = this.currentSolidsSelected[0].getMesh();
-
-            const box = new THREE.Box3().setFromObject(mesh);
-            const currentSize = new THREE.Vector3();
-            box.getSize(currentSize);
-
-            // Initialize previous size if undefined
-            if (!this.previousSize) {
-                this.previousSize = currentSize.clone();
+            if (this.arrowHelper.mode !== "scale") {
+                this.transformControlsAdjustPivot("XYZ");
                 return;
             }
-
-            const sizeDifference = currentSize.clone().sub(this.previousSize);
-            const offset = sizeDifference.multiplyScalar(0.5);
-
-            //mesh.position.add(offset); // Apply the offset
-            this.previousSize.copy(currentSize); // Update stored size
-
-            //console.log("Offset applied:", offset);
+            console.log("Axis: ", this.arrowHelper.axis);
+            this.transformControlsAdjustPivot(this.arrowHelper.axis);
         });
     }
 
@@ -717,16 +919,14 @@ export class Editor3d {
         }
         // Remove the solid with the higher index first. Don't know how that fixes it. (May or may not fix actually, I don't know when the bug happens)
         /*if (indexOfA > indexOfB) {
-            this.solids.splice(indexOfA, 1);
-            this.solids.splice(indexOfB, 1);
-        } else {
-            this.solids.splice(indexOfB, 1);
-            this.solids.splice(indexOfA, 1);
-        }*/
+                this.solids.splice(indexOfA, 1);
+                this.solids.splice(indexOfB, 1);
+            } else {
+                this.solids.splice(indexOfB, 1);
+                this.solids.splice(indexOfA, 1);
+            }*/
 
-
-
-        this.arrowHelper.detach();
+        this.arrowHelperDetach();
         //this.scene.remove(A.getMesh());
         //this.scene.remove(B.getMesh());
         //this.solids.push(C);
@@ -750,28 +950,31 @@ export class Editor3d {
 
         const decompressed: Uint8Array = inflateSync(uint8);
         const decoded: {
-            solids: ExportedData[]
+            solids: ExportedData[];
+            tree: { [key: string]: FlatNode }
         } = decode(decompressed) as {
-            solids: ExportedData[]
+            solids: ExportedData[];
+            tree: { [key: string]: FlatNode }
         };
 
         const solids = decoded.solids;
+        const tree = decoded.tree;
+        this.solidsTree = tree;
 
         const l = new THREE.ObjectLoader();
         for (const solid of solids) {
             const mesh = l.parse(solid.mesh) as THREE.Mesh;
             const newSolid = new Solid(mesh);
             newSolid.setHistoryAndParse(solid.history);
-            this.addSolid(newSolid, null);
+            this.solids[newSolid.getMesh().uuid] = newSolid;
+            this.scene.add(newSolid.getMesh());
         }
 
         console.log("Loaded ", solids.length, " solids");
-
-
-
     }
     private initializeImportSceneEvent() {
-        const inputFile: HTMLInputElement | null = document.querySelector("#importSceneInput");
+        const inputFile: HTMLInputElement | null =
+            document.querySelector("#importSceneInput");
         if (inputFile == null) return;
 
         inputFile.addEventListener("change", (event) => {
@@ -784,13 +987,13 @@ export class Editor3d {
                 }
                 const result = reader.result as ArrayBuffer;
 
-                inputFile.value = '';
+                inputFile.value = "";
                 this.importScene(result);
 
                 this.updateTree();
-            }
+            };
             reader.readAsArrayBuffer(file);
-        })
+        });
     }
     private exportScene() {
         const solidsExported = [];
@@ -801,23 +1004,25 @@ export class Editor3d {
         }
 
         const finalDict = {
-            solids: solidsExported
+            solids: solidsExported,
+            tree: this.solidsTree
         };
 
         const encoded: Uint8Array = encode(finalDict);
         const compressed: Uint8Array = deflateSync(encoded, { level: 9 });
 
-        const blob = new Blob([compressed.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+        const blob = new Blob([compressed.buffer as ArrayBuffer], {
+            type: "application/octet-stream",
+        });
         const url = URL.createObjectURL(blob);
 
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
-        a.download = '3d_scene.tkc';
+        a.download = "3d_scene.tcc";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-
     }
     private exportSceneAsSTL() {
         const scene = this.scene;
@@ -828,10 +1033,15 @@ export class Editor3d {
         // 2) Export only the meshes under a fresh Group
         const exportGroup = new THREE.Group();
         scene.traverse((child) => {
-
-            if ((child as THREE.Mesh).isMesh && !(child as any).isHelper && child.type !== 'Line' && child.renderOrder !== Infinity && child.type !== 'TransformControlsPlane') {
+            if (
+                (child as THREE.Mesh).isMesh &&
+                !(child as any).isHelper &&
+                child.type !== "Line" &&
+                child.renderOrder !== Infinity &&
+                child.type !== "TransformControlsPlane"
+            ) {
                 // bake world transform into the geometry
-                console.log(child)
+                console.log(child);
                 const mesh = child.clone() as THREE.Mesh;
                 mesh.geometry = mesh.geometry.clone().applyMatrix4(child.matrixWorld);
                 mesh.position.set(0, 0, 0);
@@ -851,20 +1061,21 @@ export class Editor3d {
             const dv = result as DataView;
             const { buffer, byteOffset, byteLength } = dv;
             const slice = buffer.slice(byteOffset, byteOffset + byteLength);
-            blob = new Blob([slice as ArrayBuffer], { type: 'application/octet-stream' });
+            blob = new Blob([slice as ArrayBuffer], {
+                type: "application/octet-stream",
+            });
         } else {
             //blob = new Blob([result as string], { type: 'text/plain' });
         }
 
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
-        a.download = binary ? 'scene.stl' : 'scene_ascii.stl';
+        a.download = binary ? "scene.stl" : "scene_ascii.stl";
         a.click();
         URL.revokeObjectURL(url);
     }
     private attemptSeperate(solid: Solid) {
-
         if (solid.history.length == 0) {
             throw new Error("Solid has no history");
         }
@@ -872,8 +1083,7 @@ export class Editor3d {
         const SolidA = solid.history[0].clone();
         const SolidB = solid.history[1].clone();
 
-
-        this.arrowHelper.detach();
+        this.arrowHelperDetach();
         this.scene.remove(solid.getMesh());
         solid.dispose();
 
@@ -887,14 +1097,13 @@ export class Editor3d {
         this.isMoving = false;
 
         this.addToUndoStack();
-
     }
 
     private importGroup(group: THREE.Group<THREE.Object3DEventMap>) {
         const meshes = getAllMeshes(group);
 
         for (const m of meshes) {
-            m.material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+            m.material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
             const s = new Solid(m);
             this.addSolid(s, null);
         }
@@ -903,50 +1112,63 @@ export class Editor3d {
     }
 
     private importMesh(mesh: THREE.Mesh) {
-        mesh.material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+        mesh.material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
         const s = new Solid(mesh);
         this.addSolid(s, null);
         this.updateTree();
-        console.log("Mesh import complete!")
+        console.log("Mesh import complete!");
+    }
+
+    private resetPivot(mesh: THREE.Mesh) {
+        // Compute geometry center
+        const geometry = mesh.geometry;
+        geometry.computeBoundingBox();
+        const box = geometry.boundingBox;
+        if (!box) return;
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+
+        // Shift geometry vertices so center becomes origin (pivot)
+        geometry.translate(-center.x, -center.y, -center.z);
+
+        // Move mesh position to compensate
+        mesh.position.add(center);
     }
 
     private initializeImport3DbuttonEvent() {
-        const importButton: HTMLButtonElement | null = document.querySelector("#import3D_import");
+        const importButton: HTMLButtonElement | null =
+            document.querySelector("#import3D_import");
         if (!importButton) {
             throw new Error("Import3D import button not found");
         }
-        const fileInput: HTMLInputElement | null = document.querySelector("#import3D_input");
+        const fileInput: HTMLInputElement | null =
+            document.querySelector("#import3D_input");
         if (!fileInput) {
             throw new Error("no file input");
         }
 
-
-
         importButton.addEventListener("click", () => {
-
-            const prompt: HTMLDivElement | null = document.querySelector("#import3D_prompt");
+            const prompt: HTMLDivElement | null =
+                document.querySelector("#import3D_prompt");
             if (!prompt) {
                 throw new Error("Prompt tno found");
-            };
+            }
 
             prompt.style.display = "none";
             if (fileInput.files == null) {
                 console.error("No file inputs!");
                 return;
-            }; // Should never happen?
+            } // Should never happen?
             if (fileInput.files.length == 0) {
                 console.error("Length = 0");
                 return;
-            };
+            }
 
             const file = fileInput.files[0];
 
             const name = file.name;
-            const ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase();
+            const ext = name.substring(name.lastIndexOf(".") + 1).toLowerCase();
             console.log(ext);
-
-
-
 
             const reader = new FileReader();
 
@@ -954,87 +1176,103 @@ export class Editor3d {
                 if (e.target == null) {
                     console.error("No target");
                     return;
-                };
+                }
                 const buffer = e.target.result as ArrayBuffer;
                 this.addToUndoStack();
 
                 switch (ext.toLowerCase()) {
-                    case 'obj': {
-                        console.log("Importing OBJ")
+                    case "obj": {
+                        console.log("Importing OBJ");
                         const text = new TextDecoder().decode(buffer);
                         const loader = new OBJLoader();
                         const object = loader.parse(text);
                         this.importGroup(object);
                         break;
                     }
-                    case 'fbx': {
-                        console.log("Importing FBX")
+                    case "fbx": {
+                        console.log("Importing FBX");
                         const loader = new FBXLoader();
-                        const object = loader.parse(buffer, '');
+                        const object = loader.parse(buffer, "");
                         console.log(object);
                         this.importGroup(object);
                         break;
                     }
-                    case 'stl': {
-                        console.log("Importing STL")
+                    case "stl": {
+                        console.log("Importing STL");
                         const loader = new STLLoader();
                         const geometry = loader.parse(buffer);
-                        const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+                        const material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
                         const mesh = new THREE.Mesh(geometry, material);
                         this.importMesh(mesh);
                         break;
                     }
-                    case 'gltf':
-                    case 'glb': {
+                    case "gltf":
+                    case "glb": {
                         console.log("Importing GLTF / GLB");
                         const loader = new GLTFLoader();
-                        loader.parse(buffer, '', (gltf) => {
-                            this.importGroup(gltf.scene);
-                        }, (error) => {
-                            console.error(error);
-                            alert(error);
-                        });
+                        loader.parse(
+                            buffer,
+                            "",
+                            (gltf) => {
+                                this.importGroup(gltf.scene);
+                            },
+                            (error) => {
+                                console.error(error);
+                                alert(error);
+                            }
+                        );
                         break;
                     }
                     default:
                         console.error("Unknown file extension");
-                        console.warn('Unsupported file extension:', ext);
+                        console.warn("Unsupported file extension:", ext);
                         alert(`Unsupported file extension: ${ext}`);
                 }
                 //const loader = new GLTFLoader();
-            }
+            };
 
             reader.readAsArrayBuffer(file);
-        })
+        });
     }
 
     private initializeButtonEvents() {
         /* 
-        Buttons: 
-        <button id="union">Union</button>
-        <button id="subtract">Subtract</button>
-        <button id="intersect">Intersect</button>
-        <button id="seperate">Seperate</button>
-        */
+            Buttons: 
+            <button id="union">Union</button>
+            <button id="subtract">Subtract</button>
+            <button id="intersect">Intersect</button>
+            <button id="seperate">Seperate</button>
+            */
 
-        const unionButton: HTMLButtonElement | null = document.querySelector("#union");
-        const subtractButton: HTMLButtonElement | null = document.querySelector("#subtract");
-        const intersectButton: HTMLButtonElement | null = document.querySelector("#intersect");
-        const seperateButton: HTMLButtonElement | null = document.querySelector("#seperate");
+        const unionButton: HTMLButtonElement | null =
+            document.querySelector("#union");
+        const subtractButton: HTMLButtonElement | null =
+            document.querySelector("#subtract");
+        const intersectButton: HTMLButtonElement | null =
+            document.querySelector("#intersect");
+        const seperateButton: HTMLButtonElement | null =
+            document.querySelector("#seperate");
 
-        if (unionButton == null || subtractButton == null || intersectButton == null || seperateButton == null) {
-            throw new Error("One or many essential buttons for element could not be found");
+        if (
+            unionButton == null ||
+            subtractButton == null ||
+            intersectButton == null ||
+            seperateButton == null
+        ) {
+            throw new Error(
+                "One or many essential buttons for element could not be found"
+            );
         }
 
         unionButton.addEventListener("click", () => {
             this.CSG_operation("Union");
-        })
+        });
         subtractButton.addEventListener("click", () => {
             this.CSG_operation("Subtract");
-        })
+        });
         intersectButton.addEventListener("click", () => {
             this.CSG_operation("Intersect");
-        })
+        });
         seperateButton.addEventListener("click", () => {
             if (this.currentSolidsSelected.length !== 1) {
                 throw new Error("Selected solids not equal to 1");
@@ -1044,14 +1282,24 @@ export class Editor3d {
 
         // cube, sphere, cylinder, wedge
 
-        const cubeButton: HTMLButtonElement | null = document.querySelector("#cube");
-        const sphereButton: HTMLButtonElement | null = document.querySelector("#sphere");
-        const CylinderButton: HTMLButtonElement | null = document.querySelector("#cylinder");
-        const WedgeButton: HTMLButtonElement | null = document.querySelector("#wedge");
+        const cubeButton: HTMLButtonElement | null =
+            document.querySelector("#cube");
+        const sphereButton: HTMLButtonElement | null =
+            document.querySelector("#sphere");
+        const CylinderButton: HTMLButtonElement | null =
+            document.querySelector("#cylinder");
+        const WedgeButton: HTMLButtonElement | null =
+            document.querySelector("#wedge");
 
-        if (cubeButton == null || sphereButton == null || CylinderButton == null || WedgeButton == null) return;
+        if (
+            cubeButton == null ||
+            sphereButton == null ||
+            CylinderButton == null ||
+            WedgeButton == null
+        )
+            return;
 
-        const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+        const material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
 
         cubeButton.addEventListener("click", () => {
             // New cube!
@@ -1085,7 +1333,7 @@ export class Editor3d {
 
             const solid = new Solid(mesh);
             this.addSolid(solid, null);
-        })
+        });
 
         WedgeButton.addEventListener("click", () => {
             // New cube!
@@ -1096,25 +1344,30 @@ export class Editor3d {
 
             const solid = new Solid(mesh);
             this.addSolid(solid, null);
-        })
+        });
 
-        const import3D_button: HTMLButtonElement | null = document.querySelector("#import3D");
+        const import3D_button: HTMLButtonElement | null =
+            document.querySelector("#import3D");
         if (import3D_button == null) {
             throw new Error("where si import3d button");
         }
 
-        const prompt: HTMLDivElement | null = document.querySelector("#import3D_prompt");
+        const prompt: HTMLDivElement | null =
+            document.querySelector("#import3D_prompt");
         if (!prompt) return;
 
         prompt.style.display = "none";
 
         import3D_button.addEventListener("click", () => {
             prompt.style.display = "block";
-        })
+        });
 
-        const exportScene: HTMLButtonElement | null = document.querySelector("#exportScene");
-        const importScene: HTMLButtonElement | null = document.querySelector("#importScene");
-        const exportSceneSTL: HTMLButtonElement | null = document.querySelector("#exportSceneSTL")
+        const exportScene: HTMLButtonElement | null =
+            document.querySelector("#exportScene");
+        const importScene: HTMLButtonElement | null =
+            document.querySelector("#importScene");
+        const exportSceneSTL: HTMLButtonElement | null =
+            document.querySelector("#exportSceneSTL");
 
         if (exportScene == null || importScene == null || exportSceneSTL == null) {
             throw new Error("eeeeeeeeeee");
@@ -1122,51 +1375,28 @@ export class Editor3d {
 
         exportScene.addEventListener("click", () => {
             this.exportScene();
-        })
+        });
         importScene.addEventListener("click", () => {
-            const a: HTMLInputElement | null = document.querySelector("#importSceneInput")
+            const a: HTMLInputElement | null =
+                document.querySelector("#importSceneInput");
             if (!a) return;
             a.click();
-        })
+        });
         exportSceneSTL.addEventListener("click", () => {
             this.exportSceneAsSTL();
-        })
+        });
     }
     private initializeDebugObjects() {
-        /*const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
-    
-        const boxGeometry = new THREE.BoxGeometry(2, 2, 2);
-        const meshA = new THREE.Mesh(boxGeometry, material);
-        meshA.position.set(-0.5, -0.5, -0.5);
-    
-        const meshB = new THREE.Mesh(boxGeometry, material);
-        meshB.position.set(0.5, 0.5, 0.5);
-    
-        const solidA = new Solid(meshA);
-        const solidB = new Solid(meshB);
-    
-        const solidC = solidA.CSG_subtract(solidB);
-    
-        this.solids.push(solidC);
-        this.scene.add(solidC.getMesh());
-    
-        const sphere = new THREE.SphereGeometry(3);
-        const meshC = new THREE.Mesh(sphere, material);
-    
-        meshC.position.set(3, 3, 3);
-    
-        const solidD = new Solid(meshC);
-        this.solids.push(solidD);
-        this.scene.add(solidD.getMesh());*/
-
-
 
     }
 
     private getTransformControlsAxis() {
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        const intersects = this.raycaster.intersectObjects(this.arrowHelper.getHelper().children, true);
+        const intersects = this.raycaster.intersectObjects(
+            this.arrowHelper.getHelper().children,
+            true
+        );
 
         if (intersects.length > 0) {
             const hit = intersects[0];
@@ -1177,23 +1407,20 @@ export class Editor3d {
 
             // Determine side (+ or -)
             //const axisDirection = Math.sign(point[selectedAxis.toLowerCase()] - objPos[selectedAxis.toLowerCase()]);
-            const a = new THREE.Vector3()
+            const a = new THREE.Vector3();
             hit.object.getWorldDirection(a);
             console.log(`Direction:`, a);
-            console.log(this.arrowHelper.getHelper().children)
+            console.log(this.arrowHelper.getHelper().children);
         } else {
             console.warn("No selected axis");
         }
     }
 
     private performRaycast() {
-
-
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
         const l: THREE.Mesh[] = [];
         for (const id in this.solids) {
-
             l.push(this.solids[id].getMesh());
         }
 
@@ -1211,7 +1438,7 @@ export class Editor3d {
                 const hit = intersect.object;
                 for (const boxID in this.solids) {
                     const box = this.solids[boxID];
-                    if (box.getMesh() == hit) {
+                    if (box.getMesh() == hit && this.scene.getObjectById(box.getMesh().id) != null) {
                         valid = true;
                         foundBox = box;
                         break;
@@ -1224,7 +1451,7 @@ export class Editor3d {
                 this.outlinePass.selectedObjects = [];
                 this.currentSolidFound = null;
                 return;
-            };
+            }
             //console.log("Raycasted box; Outline override box")
             this.currentSolidFound = foundBox;
             //this.outlinePass.selectedObjects = [foundBox.getMesh()];

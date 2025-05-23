@@ -1,20 +1,32 @@
 import * as THREE from 'three';
 import { CSG } from 'three-csg-ts';
 interface ExportedData {
-  mesh: any;          // Replace `any` with the actual type returned by toJSON()
-  history: ExportedData[];
+    mesh: any;          // Replace `any` with the actual type returned by toJSON()
+    history: ExportedData[];
 }
 
 export class Solid {
 
     mesh?: THREE.Mesh;
+    group?: THREE.Group;
     history: Solid[] = [];
     name: string = "Solid";
 
     constructor(mesh?: THREE.Mesh, name?: string) {
 
         this.mesh = mesh;
-        if (name) {this.name = name}
+
+        this.group = new THREE.Group();
+
+        const box = new THREE.Box3().setFromObject(this.mesh as THREE.Mesh);
+        const size = new THREE.Vector3()
+        box.getSize(size);
+
+
+
+        this.group.add(this.mesh as THREE.Mesh);
+
+        if (name) { this.name = name }
 
     }
     setHistory(history: Solid[]) {
@@ -23,6 +35,15 @@ export class Solid {
 
     fromGeometry(geometry: THREE.BufferGeometry, material: THREE.Material) {
         this.mesh = new THREE.Mesh(geometry, material);
+        this.group = new THREE.Group();
+
+        const box = new THREE.Box3().setFromObject(this.mesh);
+        const size = new THREE.Vector3()
+        box.getSize(size);
+
+
+
+        this.group.add(this.mesh);
     }
 
     CSG_subtract(b: Solid) {
@@ -52,6 +73,9 @@ export class Solid {
         } else {
             throw new Error("Attempt to get mesh without mesh set");
         }
+    }
+    getGroup() {
+        return this.getMesh();
     }
     clone() {
         const n = new Solid(this.mesh);

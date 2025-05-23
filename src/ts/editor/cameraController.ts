@@ -4,6 +4,8 @@ const FORWARD_MOVEMENT_SPEED = 0.2;
 const ROTATION_SPEED = 6;
 const WHEEL_MOVEMENT_SPEED = 1.3;
 const MOUSE_PAN_SPEED = 15;
+const WM_FM_RATIO = WHEEL_MOVEMENT_SPEED / FORWARD_MOVEMENT_SPEED;
+const MP_WM_RATIO = MOUSE_PAN_SPEED / WHEEL_MOVEMENT_SPEED;
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
@@ -18,6 +20,7 @@ export class CameraController {
     mouseMovementX: number = 0;
     mouseMovementY: number = 0;
     scrollWheelDelta: number = 0;
+    speedMultiplier: number = 1;
     phi: number = 0;
     theta: number = 0;
     rotation: THREE.Quaternion = new THREE.Quaternion();
@@ -75,7 +78,7 @@ export class CameraController {
     }
 
     private keyboardMoveUpdate() {
-        const speed = FORWARD_MOVEMENT_SPEED;
+        const speed = FORWARD_MOVEMENT_SPEED * this.speedMultiplier;
 
         // — WS (with pitch) —
         const lookDir = new THREE.Vector3();
@@ -110,7 +113,8 @@ export class CameraController {
     }
     private wheelMovementUpdate() {
 
-        const speed = WHEEL_MOVEMENT_SPEED;
+
+        const speed = FORWARD_MOVEMENT_SPEED * this.speedMultiplier * WM_FM_RATIO;
 
         // — WS (with pitch) —
         const lookDir = new THREE.Vector3();
@@ -157,6 +161,8 @@ export class CameraController {
         }
         document.body.style.cursor = "move";
 
+        const speed = FORWARD_MOVEMENT_SPEED * WM_FM_RATIO * MP_WM_RATIO * this.speedMultiplier;
+
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward).normalize();
 
@@ -184,7 +190,7 @@ export class CameraController {
             .addScaledVector(right, -ndcX)
             .addScaledVector(up, ndcY);
 
-        this.camera.position.add(offset.multiplyScalar(MOUSE_PAN_SPEED));
+        this.camera.position.add(offset.multiplyScalar(speed));
         target.add(offset);
     }
 
