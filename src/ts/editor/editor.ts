@@ -6,9 +6,50 @@ import Stats from 'stats.js';
 import { CameraController } from './cameraController';
 import { Solid } from './csg/objects/solid';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
+
+import { encode, decode } from '@msgpack/msgpack'
+import { inflateSync, deflateSync } from 'fflate';
+
+import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 
 function degToRad(deg: number) {
     return deg * Math.PI / 180;
+}
+
+interface ExportedData {
+    mesh: any;          // Replace `any` with the actual type returned by toJSON()
+    history: ExportedData[];
+}
+type EditorState = { [key: string]: Solid };
+
+interface FlatNode {
+    id: string;
+    parentId: string | null;
+    name: string;
+    type: string;
+}
+
+interface TreeNode extends FlatNode {
+    children: TreeNode[];
+}
+
+/**
+ * Renders a nested <ul><li> tree from a flat map of nodes.
+ */
+
+
+function getAllMeshes(object: THREE.Object3D): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    object.children.forEach((child) => {
+        console.log(child);
+        meshes.push(child as THREE.Mesh)
+    });
+    console.log(meshes.length);
+    return meshes;
 }
 
 export class Editor3d {
@@ -30,10 +71,17 @@ export class Editor3d {
     currentSolidFound: Solid | null = null;
     currentSolidsSelected: Solid[] = [];
     shiftHeldDown: boolean = false;
-    solids: Solid[] = [];
+    solids: { [key: string]: Solid } = {};
     previousSize: THREE.Vector3 = new THREE.Vector3();
+    // Undo
+    undoStack: EditorState[] = [];
+    redoStack: EditorState[] = [];
+    undoStackTree: { [key: string]: { id: string, name: string, parentId: string | null, type: string } }[] = [];
+    redoStackTree: { [key: string]: { id: string, name: string, parentId: string | null, type: string } }[] = [];
 
     previousRaycastedMesh: THREE.Mesh | null = null;
+
+    solidsTree: { [key: string]: { id: string, name: string, parentId: string | null, type: string } } = {};
 
 
     constructor() {
@@ -52,7 +100,260 @@ export class Editor3d {
         this.initializeControlsEvents();
         this.initializeDebugObjects();
         this.initializeButtonEvents();
+        this.initializeImport3DbuttonEvent();
+        this.initializeImportSceneEvent();
 
+    }
+
+
+    private renderTree(
+        solidsTree: Record<string, FlatNode>,
+        highlighted: { [key: string]: boolean }
+    ): HTMLElement {
+        // 1) Clone into TreeNodes with empty children
+        const map = new Map<string, TreeNode>();
+        for (const key in solidsTree) {
+            const { id, parentId, name, type } = solidsTree[key];
+            map.set(id, { id, parentId, name, type, children: [] });
+        }
+
+        // 2) Link children
+        const roots: TreeNode[] = [];
+        for (const node of map.values()) {
+            if (node.parentId === null) {
+                roots.push(node);
+            } else {
+                map.get(node.parentId)?.children.push(node);
+            }
+        }
+
+        // 3) Recursively build UL/LI structure
+        let buildList = (nodes: TreeNode[]) => {
+            const ul = document.createElement('ul');
+            for (const node of nodes) {
+                const li = document.createElement('li');
+                const btn = document.createElement("button");
+                if (highlighted[node.id]) btn.classList.add('tree-highlighted');
+                btn.textContent = node.name;
+                btn.dataset.nodeId = node.id;
+                li.appendChild(btn);
+                if (node.children.length) {
+                    li.appendChild(buildList(node.children));
+                }
+                btn.addEventListener("click", () => {
+                    const solid = this.solids[node.id];
+                    if (solid == null) {
+                        if (node.type != "group") {
+                            console.error("No solid, but not a group");
+                            return;
+                        };
+
+                        // Check children
+                        let numChildren = 0;
+                        for (const memberId in this.solidsTree) {
+                            const member = this.solidsTree[memberId];
+                            if (member.parentId == node.id) {
+                                console.log("Found: ", member.id)
+                                numChildren++;
+                                break;
+                            }
+                        }
+
+                        if (numChildren == 0) {
+                            delete this.solidsTree[node.id];
+                            this.updateTree();
+                            console.log("Deleted empty group");
+                        } else {
+                            console.log("Found children");
+
+                            const selectAllDescendants = (toCheckNode: FlatNode) => {
+                                for (const memberId in this.solidsTree) {
+                                    const member = this.solidsTree[memberId];
+                                    if (member.parentId == toCheckNode.id) {
+                                        console.log("Found: ", member.id)
+
+                                        const s = this.solids[member.id];
+                                        if (s == null) {
+                                            if (member.type == "group") {
+                                                selectAllDescendants(member);
+                                                continue;
+                                            } else {
+                                                continue;
+                                            }
+                                            
+                                        };
+                                        if (this.currentSolidsSelected.indexOf(s) === -1) {
+                                            this.currentSolidsSelected.push(s);
+                                        } else {
+                                            this.currentSolidsSelected.splice(this.currentSolidsSelected.indexOf(s), 1);
+
+                                        }
+                                        this.isMoving = true;
+                                        this.updateTree();
+                                        this.updateOutlinePass();
+                                        this.determineArrowHelperState();
+                                        if (this.currentSolidsSelected.length == 0) {
+                                            this.isMoving = false;
+                                        }
+                                    }
+                                }
+                            }
+
+                            selectAllDescendants(node);
+                        }
+
+                        return;
+                    };
+                    if (this.currentSolidsSelected.indexOf(solid) === -1) {
+                        this.currentSolidsSelected.push(solid);
+                        this.updateTree();
+                        this.updateOutlinePass();
+                        this.determineArrowHelperState();
+                        this.isMoving = true;
+                    } else {
+                        this.currentSolidsSelected.splice(this.currentSolidsSelected.indexOf(solid), 1);
+                        this.updateTree();
+                        this.updateOutlinePass();
+                        this.determineArrowHelperState();
+                        if (this.currentSolidsSelected.length == 0) {
+                            this.isMoving = false;
+                        }
+                    }
+                })
+
+                ul.appendChild(li);
+            }
+            return ul;
+        }
+
+        // wrap roots in a container (you can return the UL directly if you prefer)
+        const container = document.createElement('div');
+        container.appendChild(buildList(roots));
+        return container;
+    }
+
+    private buildHighlgihtedList() {
+        const a: { [key: string]: boolean } = {};
+        for (const solid of this.currentSolidsSelected) {
+            a[solid.getMesh().uuid] = true;
+        }
+        return a;
+    }
+
+    private updateTree() {
+        const tree = document.querySelector("#tree");
+        if (!tree) {
+            console.error("#tree not found;");
+            return;
+        };
+        tree.innerHTML = '';
+        const html = this.renderTree(this.solidsTree, this.buildHighlgihtedList());
+        tree.appendChild(html);
+    }
+    private deleteSolid(solid: Solid) {
+        const index = this.solids[solid.getMesh().uuid]
+        if (index === null) {
+            throw new Error("Solid does not exist");
+        }
+
+        const tree = this.solidsTree[solid.getMesh().uuid];
+        if (tree == null) {
+            throw new Error("Solid not found in tree");
+        }
+        const solidID = solid.getMesh().uuid;
+
+        // Recursive delete
+
+        delete this.solidsTree[solid.getMesh().uuid];
+        for (const id in this.solidsTree) {
+            const value = this.solidsTree[id];
+            if (value.parentId == solidID) {
+                const childSolid: Solid = this.solids[id];
+                if (childSolid !== null) {
+                    this.deleteSolid(childSolid);
+                }
+            }
+        }
+        delete this.solids[solid.getMesh().uuid];
+        this.scene.remove(solid.getMesh());
+
+        this.updateTree();
+    }
+    private getParentOfSolid(object: Solid): Solid | null {
+        const p = this.solidsTree[object.getMesh().uuid].parentId;
+        if (p == null) return p;
+        return this.solids[p];
+    }
+    private addSolid(object: Solid, parent: Solid | null) {
+        this.solids[object.getMesh().uuid] = object;
+        if (parent === null) {
+
+            this.solidsTree[object.getMesh().uuid] = {
+                parentId: null,
+                id: object.getMesh().uuid,
+                name: object.name,
+                type: "solid"
+            }
+
+        } else {
+            this.solidsTree[object.getMesh().uuid] = {
+                parentId: parent.getMesh().uuid,
+                id: object.getMesh().uuid,
+                name: object.name,
+                type: "solid"
+            }
+        }
+        this.scene.add(object.getMesh());
+
+        this.updateTree();
+    }
+
+    private addToUndoStack() {
+        const cloned: { [key: string]: Solid } = {};
+        for (const solidID in this.solids) {
+            const solid = this.solids[solidID];
+            cloned[solid.getMesh().uuid] = solid.fullClone()
+        }
+        console.log("Added to undo stack ", cloned);
+        this.undoStack.push(cloned);
+        console.log(this.undoStack);
+
+
+    }
+
+    private undoAction() {
+        console.log("Undo!");
+        if (this.undoStack.length === 0) {
+            console.warn("Nothing to undo!");
+            return;
+        }
+
+        // Save current state for redo BEFORE removing
+        const cloned: { [key: string]: Solid } = {};
+        for (const solidID in this.solids) {
+            const solid = this.solids[solidID];
+            cloned[solid.getMesh().uuid] = solid.fullClone();
+        }
+        this.redoStack.push(cloned);
+
+        // Remove current meshes
+        for (const soliID in this.solids) {
+            const solid = this.solids[soliID];
+            this.scene.remove(solid.getMesh());
+        }
+
+        this.currentSolidsSelected = [];
+        this.updateOutlinePass();
+
+        // Restore from undo
+        this.solids = this.undoStack.pop()!;
+        console.log("Solids: ", this.solids);
+        console.log("Length: ", this.solids.length);
+        for (const solidID in this.solids) {
+            const solid = this.solids[solidID];
+            console.log("Undid: ", solid);
+            this.scene.add(solid.getMesh());
+        }
     }
 
     private initializeBasics() {
@@ -91,6 +392,13 @@ export class Editor3d {
 
         this.outlinePass.renderToScreen = true;
         this.composer.addPass(this.outlinePass);
+
+        /*const loader = new THREE.TextureLoader();
+        loader.load('https://threejs.org/examples/textures/tri_pattern.jpg', (texture) => {
+            this.outlinePass.usePatternTexture = true;
+            this.outlinePass.patternTexture = texture;
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        })*/
 
 
         this.scene.add(this.camera);
@@ -145,8 +453,8 @@ export class Editor3d {
         this.scene.add(this.arrowHelper.getHelper());
     }
     private initializeStatistics() {
-        this.stats = new Stats();
-        document.body.appendChild(this.stats.dom);
+        //this.stats = new Stats();
+        //document.body.appendChild(this.stats.dom);
     }
 
     private updateOutlinePass() {
@@ -156,6 +464,13 @@ export class Editor3d {
         }
         console.log("OutlinePass: Updated total of ", this.currentSolidsSelected.length, " solids");
         this.outlinePass.selectedObjects = a;
+    }
+    private determineArrowHelperState() {
+        if (this.currentSolidsSelected.length === 1) {
+            this.arrowHelper.attach(this.currentSolidsSelected[0].getMesh());
+        } else {
+            this.arrowHelper.detach();
+        }
     }
     private onClick(event: MouseEvent) {
         if (event.button != 0) return;
@@ -168,13 +483,25 @@ export class Editor3d {
             return;
         };
         if (this.shiftHeldDown == true && this.currentSolidsSelected.length > 0) {
-            if (this.currentSolidsSelected.indexOf(this.currentSolidFound) != -1) return;
+            if (this.currentSolidsSelected.indexOf(this.currentSolidFound) != -1 && this.currentSolidsSelected.length > 1) {
+                // Remove from list
+                console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));
+                console.warn("Remove from list!")
+                this.currentSolidsSelected.splice(this.currentSolidsSelected.indexOf(this.currentSolidFound), 1);
+                console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));
+                this.determineArrowHelperState();
+                this.isMoving = true;
+                this.updateOutlinePass();
+                this.updateTree();
+                return;
+            };
             this.currentSolidsSelected.push(this.currentSolidFound);
             console.log(this.currentSolidFound)
             this.arrowHelper.detach();
             this.isMoving = true;
-            console.log("Detached: shift key held down");
+            console.warn("Add to list");
             this.updateOutlinePass();
+            this.updateTree();
             return;
         }
 
@@ -189,6 +516,7 @@ export class Editor3d {
 
         this.previousSize.copy(size);
         console.log("Attached TransformControls to Box");
+        this.updateTree();
     }
     private initializeMouseEvents() {
         document.addEventListener("mousemove", (event: MouseEvent) => {
@@ -209,6 +537,7 @@ export class Editor3d {
         document.addEventListener("keydown", (event: KeyboardEvent) => {
             if (event.ctrlKey && event.key.toLowerCase() === 'd') {
                 event.preventDefault();
+                this.addToUndoStack();
                 // Your Ctrl + D logic here
 
                 // Duplicate current solid
@@ -218,9 +547,12 @@ export class Editor3d {
                 for (const solid of this.currentSolidsSelected) {
                     const newSolid = solid.fullClone();
                     duplicated.push(newSolid);
-                    this.scene.add(newSolid.getMesh())
-                    this.solids.push(newSolid);
+                    //this.scene.add(newSolid.getMesh())
+                    //this.solids.push(newSolid);
+                    this.addSolid(newSolid, this.getParentOfSolid(solid));
                 }
+
+
 
                 this.currentSolidsSelected = duplicated;
 
@@ -230,18 +562,72 @@ export class Editor3d {
                     this.arrowHelper.attach(this.currentSolidsSelected[0].getMesh());
                     this.isMoving = true;
                 } else {
-                    this.isMoving = false;
+                    this.isMoving = true;
                     this.arrowHelper.detach();
                 }
 
                 return;
 
             }
+            if (event.ctrlKey && event.key.toLowerCase() === 'g') {
+                if (this.currentSolidsSelected.length === 0) return;
+                const first = this.currentSolidsSelected[0];
+                const firstParent = this.solidsTree[first.getMesh().uuid].parentId;
+                for (const other of this.currentSolidsSelected) {
+                    if (this.solidsTree[other.getMesh().uuid].parentId != firstParent) {
+                        console.error("Not all direct children");
+                        return;
+                    }
+                }
+
+                console.log("All direct children");
+
+                const uuid = THREE.MathUtils.generateUUID();
+
+                const group: FlatNode = {
+                    id: uuid,
+                    parentId: firstParent,
+                    name: "group",
+                    type: "group"
+                };
+
+                this.solidsTree[uuid] = group;
+
+                for (const selected of this.currentSolidsSelected) {
+                    this.solidsTree[selected.getMesh().uuid].parentId = uuid;
+                }
+                this.updateTree();
+            }
+            if (event.ctrlKey && event.key.toLowerCase() === 'z') {
+                event.preventDefault();
+                console.log("Undo action!")
+                this.undoAction();
+            }
+            if (event.ctrlKey && event.key.toLowerCase() === 'a') {
+                event.preventDefault();
+                // Select everything
+                this.currentSolidsSelected = [];
+                for (const solidID in this.solids) {
+                    const solid = this.solids[solidID];
+                    this.currentSolidsSelected.push(solid);
+                }
+                this.updateOutlinePass();
+
+                if (this.currentSolidsSelected.length === 1) {
+                    this.arrowHelper.attach(this.currentSolidsSelected[0].getMesh());
+                    this.isMoving = true;
+                } else {
+                    this.isMoving = true;
+                    this.arrowHelper.detach();
+                }
+            }
             if (event.key === 'Escape') {
                 if (this.isMoving == false) return;
                 this.arrowHelper.detach();
                 this.currentSolidsSelected = [];
+                this.updateOutlinePass();
                 this.isMoving = false;
+                this.updateTree();
             }
             if (event.key === '2') {
                 this.arrowHelper.setMode('translate');
@@ -257,17 +643,22 @@ export class Editor3d {
             }
             if (event.key === "Delete") {
                 // de;ete
+                this.addToUndoStack();
                 this.arrowHelper.detach();
                 for (const solid of this.currentSolidsSelected) {
-                    const a = this.solids.indexOf(solid);
-                    if (a != -1) {
-                        this.solids.splice(a, 1);
-                        this.scene.remove(solid.getMesh());
-                        solid.dispose();
+                    //const a = this.solids.indexOf(solid);
+                    const a = this.solids[solid.getMesh().uuid];
+                    if (a !== null) {
+                        //this.solids.splice(a, 1);
+                        //this.scene.remove(solid.getMesh());
+                        //solid.dispose();
+                        this.deleteSolid(a);
                     }
                 }
                 this.currentSolidsSelected = [];
                 this.isMoving = false;
+
+
             }
 
         })
@@ -313,11 +704,9 @@ export class Editor3d {
         const A = this.currentSolidsSelected[0];
         const B = this.currentSolidsSelected[1];
 
-        const indexOfB = this.solids.indexOf(B);
-        const indexOfA = this.solids.indexOf(A);
-        if (indexOfB === -1 || indexOfA === -1) {
-            throw new Error("Index of solid B or A could not be calculated");
-        }
+        //const indexOfB = this.solids.indexOf(B);
+        //const indexOfA = this.solids.indexOf(A);
+
         let C!: Solid;
         if (operation == "Union") {
             C = A.CSG_union(B);
@@ -327,31 +716,155 @@ export class Editor3d {
             C = A.CSG_intersect(B);
         }
         // Remove the solid with the higher index first. Don't know how that fixes it. (May or may not fix actually, I don't know when the bug happens)
-        if (indexOfA > indexOfB) {
+        /*if (indexOfA > indexOfB) {
             this.solids.splice(indexOfA, 1);
             this.solids.splice(indexOfB, 1);
         } else {
             this.solids.splice(indexOfB, 1);
             this.solids.splice(indexOfA, 1);
-        }
-        this.arrowHelper.detach();
-        this.scene.remove(A.getMesh());
-        this.scene.remove(B.getMesh());
-        this.solids.push(C);
-        this.scene.add(C.getMesh());
+        }*/
 
+
+
+        this.arrowHelper.detach();
+        //this.scene.remove(A.getMesh());
+        //this.scene.remove(B.getMesh());
+        //this.solids.push(C);
+        //this.scene.add(C.getMesh());
+        this.addSolid(C, this.getParentOfSolid(A));
+        this.deleteSolid(A);
+        this.deleteSolid(B);
 
         this.currentSolidsSelected = [];
         this.updateOutlinePass();
         this.isMoving = false;
 
         console.log("*** COMPLETED CSG OPERATION ***");
+
+        this.addToUndoStack();
+    }
+    private importScene(arrayBuffer: ArrayBuffer) {
+        this.addToUndoStack();
+
+        const uint8: Uint8Array = new Uint8Array(arrayBuffer);
+
+        const decompressed: Uint8Array = inflateSync(uint8);
+        const decoded: {
+            solids: ExportedData[]
+        } = decode(decompressed) as {
+            solids: ExportedData[]
+        };
+
+        const solids = decoded.solids;
+
+        const l = new THREE.ObjectLoader();
+        for (const solid of solids) {
+            const mesh = l.parse(solid.mesh) as THREE.Mesh;
+            const newSolid = new Solid(mesh);
+            newSolid.setHistoryAndParse(solid.history);
+            this.addSolid(newSolid, null);
+        }
+
+        console.log("Loaded ", solids.length, " solids");
+
+
+
+    }
+    private initializeImportSceneEvent() {
+        const inputFile: HTMLInputElement | null = document.querySelector("#importSceneInput");
+        if (inputFile == null) return;
+
+        inputFile.addEventListener("change", (event) => {
+            if (!inputFile.files) return;
+            const file = inputFile.files[0];
+            const reader = new FileReader();
+            reader.onload = () => {
+                if (!reader.result) {
+                    throw new Error("Reader did not return a result");
+                }
+                const result = reader.result as ArrayBuffer;
+
+                inputFile.value = '';
+                this.importScene(result);
+
+                this.updateTree();
+            }
+            reader.readAsArrayBuffer(file);
+        })
+    }
+    private exportScene() {
+        const solidsExported = [];
+
+        for (const solidID in this.solids) {
+            const solid = this.solids[solidID];
+            solidsExported.push(solid.export());
+        }
+
+        const finalDict = {
+            solids: solidsExported
+        };
+
+        const encoded: Uint8Array = encode(finalDict);
+        const compressed: Uint8Array = deflateSync(encoded, { level: 9 });
+
+        const blob = new Blob([compressed.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '3d_scene.tkc';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+    }
+    private exportSceneAsSTL() {
+        const scene = this.scene;
+        const binary = true;
+        // 1) Force every mesh to bake its world-transform into its geometry
+        scene.updateMatrixWorld(true);
+
+        // 2) Export only the meshes under a fresh Group
+        const exportGroup = new THREE.Group();
+        scene.traverse((child) => {
+
+            if ((child as THREE.Mesh).isMesh && !(child as any).isHelper && child.type !== 'Line' && child.renderOrder !== Infinity && child.type !== 'TransformControlsPlane') {
+                // bake world transform into the geometry
+                console.log(child)
+                const mesh = child.clone() as THREE.Mesh;
+                mesh.geometry = mesh.geometry.clone().applyMatrix4(child.matrixWorld);
+                mesh.position.set(0, 0, 0);
+                mesh.rotation.set(0, 0, 0);
+                mesh.scale.set(1, 1, 1);
+                exportGroup.add(mesh);
+            }
+        });
+
+        // 3) Generate STL
+        const exporter = new STLExporter();
+        const result = exporter.parse(exportGroup, { binary });
+
+        // 4) Build a Blob and download
+        let blob: Blob;
+        if (true) {
+            const dv = result as DataView;
+            const { buffer, byteOffset, byteLength } = dv;
+            const slice = buffer.slice(byteOffset, byteOffset + byteLength);
+            blob = new Blob([slice as ArrayBuffer], { type: 'application/octet-stream' });
+        } else {
+            //blob = new Blob([result as string], { type: 'text/plain' });
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = binary ? 'scene.stl' : 'scene_ascii.stl';
+        a.click();
+        URL.revokeObjectURL(url);
     }
     private attemptSeperate(solid: Solid) {
-        const indexOfA = this.solids.indexOf(solid);
-        if (indexOfA === -1) {
-            throw new Error("Solid not found in solids array");
-        }
+
         if (solid.history.length == 0) {
             throw new Error("Solid has no history");
         }
@@ -359,21 +872,140 @@ export class Editor3d {
         const SolidA = solid.history[0].clone();
         const SolidB = solid.history[1].clone();
 
-        this.solids.splice(indexOfA, 1);
+
         this.arrowHelper.detach();
         this.scene.remove(solid.getMesh());
         solid.dispose();
 
-        this.solids.push(SolidA);
-        this.solids.push(SolidB);
-        this.scene.add(SolidA.getMesh());
-        this.scene.add(SolidB.getMesh());
+        this.addSolid(SolidA, this.getParentOfSolid(solid));
+        this.addSolid(SolidB, this.getParentOfSolid(solid));
 
+        this.deleteSolid(solid);
 
         this.currentSolidsSelected = [];
         this.updateOutlinePass();
         this.isMoving = false;
 
+        this.addToUndoStack();
+
+    }
+
+    private importGroup(group: THREE.Group<THREE.Object3DEventMap>) {
+        const meshes = getAllMeshes(group);
+
+        for (const m of meshes) {
+            m.material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+            const s = new Solid(m);
+            this.addSolid(s, null);
+        }
+        this.updateTree();
+        console.log("Group import complete! Number of items: ", meshes.length);
+    }
+
+    private importMesh(mesh: THREE.Mesh) {
+        mesh.material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+        const s = new Solid(mesh);
+        this.addSolid(s, null);
+        this.updateTree();
+        console.log("Mesh import complete!")
+    }
+
+    private initializeImport3DbuttonEvent() {
+        const importButton: HTMLButtonElement | null = document.querySelector("#import3D_import");
+        if (!importButton) {
+            throw new Error("Import3D import button not found");
+        }
+        const fileInput: HTMLInputElement | null = document.querySelector("#import3D_input");
+        if (!fileInput) {
+            throw new Error("no file input");
+        }
+
+
+
+        importButton.addEventListener("click", () => {
+
+            const prompt: HTMLDivElement | null = document.querySelector("#import3D_prompt");
+            if (!prompt) {
+                throw new Error("Prompt tno found");
+            };
+
+            prompt.style.display = "none";
+            if (fileInput.files == null) {
+                console.error("No file inputs!");
+                return;
+            }; // Should never happen?
+            if (fileInput.files.length == 0) {
+                console.error("Length = 0");
+                return;
+            };
+
+            const file = fileInput.files[0];
+
+            const name = file.name;
+            const ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase();
+            console.log(ext);
+
+
+
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                if (e.target == null) {
+                    console.error("No target");
+                    return;
+                };
+                const buffer = e.target.result as ArrayBuffer;
+                this.addToUndoStack();
+
+                switch (ext.toLowerCase()) {
+                    case 'obj': {
+                        console.log("Importing OBJ")
+                        const text = new TextDecoder().decode(buffer);
+                        const loader = new OBJLoader();
+                        const object = loader.parse(text);
+                        this.importGroup(object);
+                        break;
+                    }
+                    case 'fbx': {
+                        console.log("Importing FBX")
+                        const loader = new FBXLoader();
+                        const object = loader.parse(buffer, '');
+                        console.log(object);
+                        this.importGroup(object);
+                        break;
+                    }
+                    case 'stl': {
+                        console.log("Importing STL")
+                        const loader = new STLLoader();
+                        const geometry = loader.parse(buffer);
+                        const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+                        const mesh = new THREE.Mesh(geometry, material);
+                        this.importMesh(mesh);
+                        break;
+                    }
+                    case 'gltf':
+                    case 'glb': {
+                        console.log("Importing GLTF / GLB");
+                        const loader = new GLTFLoader();
+                        loader.parse(buffer, '', (gltf) => {
+                            this.importGroup(gltf.scene);
+                        }, (error) => {
+                            console.error(error);
+                            alert(error);
+                        });
+                        break;
+                    }
+                    default:
+                        console.error("Unknown file extension");
+                        console.warn('Unsupported file extension:', ext);
+                        alert(`Unsupported file extension: ${ext}`);
+                }
+                //const loader = new GLTFLoader();
+            }
+
+            reader.readAsArrayBuffer(file);
+        })
     }
 
     private initializeButtonEvents() {
@@ -424,73 +1056,110 @@ export class Editor3d {
         cubeButton.addEventListener("click", () => {
             // New cube!
 
+            this.addToUndoStack();
+
             const geometry = new THREE.BoxGeometry(2, 2, 2);
             const mesh = new THREE.Mesh(geometry, material.clone());
 
             const solid = new Solid(mesh);
-            this.scene.add(solid.getMesh());
-            this.solids.push(solid);
+            this.addSolid(solid, null);
         });
 
         sphereButton.addEventListener("click", () => {
             // New cube!
+            this.addToUndoStack();
 
             const geometry = new THREE.SphereGeometry(2);
             const mesh = new THREE.Mesh(geometry, material.clone());
 
             const solid = new Solid(mesh);
-            this.scene.add(solid.getMesh());
-            this.solids.push(solid);
+            this.addSolid(solid, null);
         });
 
         CylinderButton.addEventListener("click", () => {
             // New cube!
+            this.addToUndoStack();
 
             const geometry = new THREE.CylinderGeometry(2, 2, 4);
             const mesh = new THREE.Mesh(geometry, material.clone());
 
             const solid = new Solid(mesh);
-            this.scene.add(solid.getMesh());
-            this.solids.push(solid);
+            this.addSolid(solid, null);
         })
 
         WedgeButton.addEventListener("click", () => {
             // New cube!
+            this.addToUndoStack();
 
             const geometry = new THREE.DodecahedronGeometry(2, 0);
             const mesh = new THREE.Mesh(geometry, material.clone());
 
             const solid = new Solid(mesh);
-            this.scene.add(solid.getMesh());
-            this.solids.push(solid);
+            this.addSolid(solid, null);
+        })
+
+        const import3D_button: HTMLButtonElement | null = document.querySelector("#import3D");
+        if (import3D_button == null) {
+            throw new Error("where si import3d button");
+        }
+
+        const prompt: HTMLDivElement | null = document.querySelector("#import3D_prompt");
+        if (!prompt) return;
+
+        prompt.style.display = "none";
+
+        import3D_button.addEventListener("click", () => {
+            prompt.style.display = "block";
+        })
+
+        const exportScene: HTMLButtonElement | null = document.querySelector("#exportScene");
+        const importScene: HTMLButtonElement | null = document.querySelector("#importScene");
+        const exportSceneSTL: HTMLButtonElement | null = document.querySelector("#exportSceneSTL")
+
+        if (exportScene == null || importScene == null || exportSceneSTL == null) {
+            throw new Error("eeeeeeeeeee");
+        }
+
+        exportScene.addEventListener("click", () => {
+            this.exportScene();
+        })
+        importScene.addEventListener("click", () => {
+            const a: HTMLInputElement | null = document.querySelector("#importSceneInput")
+            if (!a) return;
+            a.click();
+        })
+        exportSceneSTL.addEventListener("click", () => {
+            this.exportSceneAsSTL();
         })
     }
     private initializeDebugObjects() {
-        const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
-
+        /*const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+    
         const boxGeometry = new THREE.BoxGeometry(2, 2, 2);
         const meshA = new THREE.Mesh(boxGeometry, material);
         meshA.position.set(-0.5, -0.5, -0.5);
-
+    
         const meshB = new THREE.Mesh(boxGeometry, material);
         meshB.position.set(0.5, 0.5, 0.5);
-
+    
         const solidA = new Solid(meshA);
         const solidB = new Solid(meshB);
-
+    
         const solidC = solidA.CSG_subtract(solidB);
-
+    
         this.solids.push(solidC);
         this.scene.add(solidC.getMesh());
-
+    
         const sphere = new THREE.SphereGeometry(3);
         const meshC = new THREE.Mesh(sphere, material);
-
+    
         meshC.position.set(3, 3, 3);
-
+    
         const solidD = new Solid(meshC);
         this.solids.push(solidD);
-        this.scene.add(solidD.getMesh());
+        this.scene.add(solidD.getMesh());*/
+
+
 
     }
 
@@ -522,7 +1191,13 @@ export class Editor3d {
 
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        const intersects = this.raycaster.intersectObjects(this.solids.map(box => box.getMesh()), true); // true = recursive
+        const l: THREE.Mesh[] = [];
+        for (const id in this.solids) {
+
+            l.push(this.solids[id].getMesh());
+        }
+
+        const intersects = this.raycaster.intersectObjects(l, true); // true = recursive
 
         if (intersects.length > 0) {
             let valid = false;
@@ -534,7 +1209,8 @@ export class Editor3d {
                     break;
                 }
                 const hit = intersect.object;
-                for (const box of this.solids) {
+                for (const boxID in this.solids) {
+                    const box = this.solids[boxID];
                     if (box.getMesh() == hit) {
                         valid = true;
                         foundBox = box;
@@ -560,11 +1236,11 @@ export class Editor3d {
         }
     }
     renderScene() {
-        this.stats.begin();
+        //this.stats.begin();
         this.controls.beforeRender();
         this.performRaycast();
         this.composer.render();
-        this.stats.end();
+        //this.stats.end();
     }
     renderLoop() {
         requestAnimationFrame(this.renderLoop);

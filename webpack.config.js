@@ -22,6 +22,10 @@ module.exports = {
         test: /\.(glsl|vs|fs|vert|frag)$/,
         use: 'raw-loader',
       },
+      {
+        test: /\.(png|jpg|jpeg|gif|svg|glb)$/i,
+        type: 'asset/resource', // This emits the file and gives you a URL
+      },
     ],
   },
   plugins: [
@@ -29,5 +33,5 @@ module.exports = {
       template: './src/html/index.html', // Your HTML template
     }),
   ],
-  mode: 'production',
+  mode: 'development',
 };

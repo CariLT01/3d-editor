@@ -1,13 +1,20 @@
 import * as THREE from 'three';
 import { CSG } from 'three-csg-ts';
+interface ExportedData {
+  mesh: any;          // Replace `any` with the actual type returned by toJSON()
+  history: ExportedData[];
+}
+
 export class Solid {
 
     mesh?: THREE.Mesh;
     history: Solid[] = [];
+    name: string = "Solid";
 
-    constructor(mesh?: THREE.Mesh) {
+    constructor(mesh?: THREE.Mesh, name?: string) {
 
         this.mesh = mesh;
+        if (name) {this.name = name}
 
     }
     setHistory(history: Solid[]) {
@@ -53,12 +60,42 @@ export class Solid {
         return n;
     }
     fullClone() {
-        const n = new Solid(this.getMesh().clone());
-        n.setHistory(this.history);
+        // Deep clone: rebuild the mesh from its JSON representation
+        const loader = new THREE.ObjectLoader();
+        const meshClone = loader.parse(this.getMesh().toJSON()) as THREE.Mesh;
+        meshClone.uuid = THREE.MathUtils.generateUUID();
+        const n = new Solid(meshClone);
+        n.setHistory(this.history.map(h => h.fullClone()));
         return n;
     }
     dispose() {
         //this.getMesh().geometry.dispose();
+    }
+
+    setHistoryAndParse(history: ExportedData[]) {
+        const l = new THREE.ObjectLoader();
+        this.history = [];
+        for (const h of history) {
+            const mesh = l.parse(h.mesh) as THREE.Mesh;
+            const solid = new Solid(mesh);
+            solid.setHistoryAndParse(h.history);
+            this.history.push(solid);
+        }
+    }
+
+    export(): ExportedData {
+
+        const exportedHistory = [];
+
+        for (const h of this.history) {
+            exportedHistory.push(h.export())
+        }
+
+        return {
+            mesh: this.getMesh().toJSON(),
+            history: exportedHistory
+        }
+
     }
 
 }
