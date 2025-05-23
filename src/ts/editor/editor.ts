@@ -68,11 +68,13 @@ export class Editor3d {
     isLocalSpace: boolean = true;
     scaleStart: THREE.Vector3 = new THREE.Vector3();
     positionStart: THREE.Vector3 = new THREE.Vector3();
+    arrowHelperGroup: THREE.Group | null = null;
     // Other
     stats!: Stats;
     currentSolidFound: Solid | null = null;
     currentSolidsSelected: Solid[] = [];
     shiftHeldDown: boolean = false;
+    altHeldDown: boolean = false;
     solids: { [key: string]: Solid } = {};
     previousSize: THREE.Vector3 = new THREE.Vector3();
     // Undo
@@ -126,6 +128,78 @@ export class Editor3d {
         this.initializeButtonEvents();
         this.initializeImport3DbuttonEvent();
         this.initializeImportSceneEvent();
+        this.updateOutlinePass();
+    }
+
+    private updatePropertiesTab() {
+        const propertiesTab: HTMLDivElement | null = document.querySelector("#properties");
+        if (!propertiesTab) {
+            throw new Error("Properties tab not found");
+        }
+
+        if (this.currentSolidsSelected.length !== 1) {
+            propertiesTab.innerHTML = '';
+            if (!propertiesTab.parentElement) return;
+            propertiesTab.parentElement.style.display = "none";
+            return;
+        } else {
+            if (!propertiesTab.parentElement) return;
+            propertiesTab.parentElement.style.display = "block";
+        }
+
+        propertiesTab.innerHTML = '';
+
+        const solid = this.currentSolidsSelected[0];
+        solid.updateProperties();
+
+        const properties = solid.properties;
+
+        for (const propertyName in properties) {
+            const propertyValue = properties[propertyName];
+
+            // New entry
+
+            const propertyItemDiv = document.createElement("div");
+            const propertyLabelElement = document.createElement("label");
+
+            propertyLabelElement.innerText = propertyName;
+            propertyItemDiv.appendChild(propertyLabelElement);
+            if (propertyValue.type == "Vector3") {
+                const inputElement = document.createElement("input");
+                inputElement.value = `${propertyValue.values[0]}, ${propertyValue.values[1]}, ${propertyValue.values[2]}`;
+
+
+                propertyItemDiv.appendChild(inputElement);
+
+                console.log("Added new input for: ", propertyName);
+                inputElement.addEventListener("input", () => {
+                    console.log("Input element value changed");
+                    const str = inputElement.value;
+                    const numbers = str.split(',').map(Number);
+
+                    if (numbers.length !== 3) {
+                        console.error("Number of numbers not equals to 3: ", numbers.length);
+                        return;
+                    }
+                    if (propertyName == "position") {
+                        console.log("Position set to: ", numbers);
+                        solid.updatePropertyItem("position", numbers);
+                    } else if (propertyName == "scale") {
+                        console.log("Scale set to: ", numbers);
+                        solid.updatePropertyItem("scale", numbers);
+                    } else {
+                        console.error("Unrecognized property name: ", propertyName);
+                    }
+
+                })
+
+
+            } else {
+                console.warn("Unrecognized property type: ", propertyValue.type);
+            }
+
+            propertiesTab.appendChild(propertyItemDiv);
+        }
     }
 
     private renderTree(
@@ -157,6 +231,15 @@ export class Editor3d {
                 const btn = document.createElement("button");
                 if (highlighted[node.id]) btn.classList.add("tree-highlighted");
                 btn.classList.add("tree-item");
+
+                // See if solid is hidden
+                const solid = this.solids[node.id];
+                if (solid) {
+                    if (this.scene.getObjectById(solid.getMesh().id) == null) {
+                        btn.classList.add("tree-item-hidden")
+                    }
+                }
+
                 btn.textContent = node.name;
                 btn.dataset.nodeId = node.id;
                 li.appendChild(btn);
@@ -387,6 +470,34 @@ export class Editor3d {
     private arrowHelperDetach() {
         this.arrowHelper.detach();
         this.arrowHelperSelectedMesh = null;
+
+        if (this.arrowHelperGroup) {
+            const groupMatrixWorld = this.arrowHelperGroup.matrixWorld;
+
+            for (const selected of this.currentSolidsSelected) {
+                const mesh = selected.getMesh();
+
+                if (this.arrowHelperGroup.children.includes(mesh)) {
+                    // Update world matrix for the group and child
+                    this.arrowHelperGroup.updateMatrixWorld();
+                    mesh.updateMatrixWorld();
+
+                    // Save world position/rotation/scale
+                    mesh.applyMatrix4(groupMatrixWorld);
+                    this.arrowHelperGroup.remove(mesh);
+                    this.scene.add(mesh);
+
+                    selected.updateProperties();
+                }
+            }
+
+            if (this.scene.getObjectById(this.arrowHelperGroup.id)) {
+                this.scene.remove(this.arrowHelperGroup);
+            }
+
+            this.arrowHelperGroup = null;
+        }
+
         this.bottomToolbarButtonSetVisibility("localspace", false);
     }
 
@@ -432,7 +543,7 @@ export class Editor3d {
 
         this.scene.add(this.camera);
 
-        this.scene.background = new THREE.Color(0x444444);
+
     }
     private initializeLighting() {
         // Ambient light for general soft lighting
@@ -636,6 +747,13 @@ export class Editor3d {
             cube.position.copy(this.positionStart).add(offset);
         });*/
 
+        this.arrowHelper.addEventListener("objectChange", () => {
+            if (this.currentSolidsSelected.length !== 1) return;
+            this.updatePropertiesTab();
+
+
+        })
+
     }
     private initializeStatistics() {
         //this.stats = new Stats();
@@ -653,10 +771,78 @@ export class Editor3d {
             " solids"
         );
         this.outlinePass.selectedObjects = a;
+        this.updatePropertiesTab();
+        const x: HTMLButtonElement | null = document.querySelector("#hideSolids");
+        if (!x) return;
+        if (a.length > 0) { x.style.display = "flex"; }
+        else { x.style.display = "none" }
+        const y: HTMLButtonElement | null = document.querySelector("#resetPivot");
+        if (!y) return;
+        if (a.length === 1) { y.style.display = "flex"; }
+        else { y.style.display = "none"; }
     }
     private determineArrowHelperState() {
-        if (this.currentSolidsSelected.length === 1) {
+        const n = this.currentSolidsSelected.length;
+        if (n === 1) {
             this.arrowHelperAttach(this.currentSolidsSelected[0]);
+            this.arrowHelper.showX = true;
+            this.arrowHelper.showY = true;
+            this.arrowHelper.showZ = true;
+            return;
+        }
+
+        if (n > 1) {
+            // 1) Compute center position
+            const center = new THREE.Vector3();
+            // 2) Accumulate quaternions
+            const avgQuat = new THREE.Quaternion();
+            const tmpQuat = new THREE.Quaternion();
+
+            for (const item of this.currentSolidsSelected) {
+                const mesh = item.getMesh();
+                mesh.updateMatrixWorld(true);
+
+                // position
+                center.add(mesh.getWorldPosition(new THREE.Vector3()));
+
+                // orientation
+                mesh.getWorldQuaternion(tmpQuat);
+                avgQuat.x += tmpQuat.x;
+                avgQuat.y += tmpQuat.y;
+                avgQuat.z += tmpQuat.z;
+                avgQuat.w += tmpQuat.w;
+            }
+
+            center.divideScalar(n);
+            // normalize the summed quaternion to approximate the average
+            avgQuat.normalize();
+
+            // 3) Create group at center with averaged orientation
+            this.arrowHelperGroup = new THREE.Group();
+            this.arrowHelperGroup.position.copy(center);
+            if (this.isLocalSpace) {
+                this.arrowHelperGroup.quaternion.copy(avgQuat);
+            }
+
+            this.scene.add(this.arrowHelperGroup);
+
+            // 4) Reparent meshes so they keep their world-space transforms
+            for (const item of this.currentSolidsSelected) {
+                const mesh = item.getMesh();
+                mesh.updateMatrixWorld(true);
+
+                if (this.scene.getObjectById(mesh.id)) {
+                    this.scene.remove(mesh);
+                    // `attach()` will compute the correct local position & rotation
+                    this.arrowHelperGroup.attach(mesh);
+                }
+                // otherwise it was hidden—skip it
+            }
+
+            // 5) Hook up the gizmo
+            this.arrowHelper.attach(this.arrowHelperGroup);
+            this.bottomToolbarButtonSetVisibility("localspace", true);
+            this.isMoving = true;
         } else {
             this.arrowHelperDetach();
         }
@@ -667,41 +853,67 @@ export class Editor3d {
             console.error("No box hit");
             return;
         }
-        if (this.isMoving == true && this.shiftHeldDown == false) {
+        if (this.isMoving == true && this.shiftHeldDown == false && this.altHeldDown == false) {
             console.error("Already moving");
             return;
         }
-        if (this.shiftHeldDown == true && this.currentSolidsSelected.length > 0) {
+        if ((this.shiftHeldDown == true || this.altHeldDown == true) && this.currentSolidsSelected.length > 0) {
             if (
                 this.currentSolidsSelected.indexOf(this.currentSolidFound) != -1 &&
                 this.currentSolidsSelected.length > 1
             ) {
                 // Remove from list
-                console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));
+                /*console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));
                 console.warn("Remove from list!");
                 this.currentSolidsSelected.splice(
                     this.currentSolidsSelected.indexOf(this.currentSolidFound),
                     1
                 );
-                console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));
+                console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));*/
+                const i=this.currentSolidsSelected.indexOf(this.currentSolidFound);
+                if (i!=-1){this.currentSolidsSelected.splice(i,1)}
+                else{
+                    this.currentSolidsSelected.push(this.currentSolidFound);
+                }
+                
+                if (!this.altHeldDown) {
+                    const parent = this.solidsTree[this.currentSolidFound.getMesh().uuid]?.parentId || "hahahaeeeeeeeeeeee";
+                    this.selectAllDescendants(parent, this.currentSolidFound.getMesh().uuid);
+                }
+
                 this.determineArrowHelperState();
                 this.isMoving = true;
                 this.updateOutlinePass();
                 this.updateTree();
+                this.updatePropertiesTab();
                 return;
             }
             this.currentSolidsSelected.push(this.currentSolidFound);
-            console.log(this.currentSolidFound);
-            this.arrowHelperDetach();
+            if (!this.altHeldDown) {
+                const parent = this.solidsTree[this.currentSolidFound.getMesh().uuid]?.parentId || "hahahaeeeeeeeeeeee";
+                this.selectAllDescendants(parent, this.currentSolidFound.getMesh().uuid);
+            }
+
+            //this.arrowHelperDetach();
             this.isMoving = true;
             console.warn("Add to list");
             this.updateOutlinePass();
             this.updateTree();
+            this.updatePropertiesTab();
+            this.determineArrowHelperState();
+
             return;
         }
 
-        this.arrowHelperAttach(this.currentSolidFound);
-        this.currentSolidsSelected = [this.currentSolidFound];
+        /*this.arrowHelperAttach(this.currentSolidFound);
+        this.currentSolidsSelected = [this.currentSolidFound];*/
+        this.currentSolidsSelected.push(this.currentSolidFound);
+        if (!this.altHeldDown) {
+            const parent = this.solidsTree[this.currentSolidFound.getMesh().uuid]?.parentId || "hahahaeeeeeeeeeeee";
+            this.selectAllDescendants(parent, this.currentSolidFound.getMesh().uuid);
+        }
+
+        this.determineArrowHelperState();
         this.isMoving = true;
         this.updateOutlinePass();
 
@@ -712,6 +924,8 @@ export class Editor3d {
         this.previousSize.copy(size);
         console.log("Attached TransformControls to Box");
         this.updateTree();
+        this.updatePropertiesTab();
+
     }
     private initializeMouseEvents() {
         document.addEventListener("mousemove", (event: MouseEvent) => {
@@ -734,40 +948,60 @@ export class Editor3d {
                 this.setBottomToolbarButton("localspace", this.isLocalSpace);
                 if (this.isLocalSpace) { this.arrowHelper.setSpace("local") }
                 else { this.arrowHelper.setSpace("world") }
+                this.determineArrowHelperState();
             }
             if (event.key.toLowerCase() === 'P') {
                 event.preventDefault();
                 if (this.currentSolidsSelected.length !== 1) return;
                 this.resetPivot(this.currentSolidsSelected[0].getMesh());
             }
+            if (event.altKey) {
+                this.altHeldDown = true;
+            }
             if (event.ctrlKey && event.key.toLowerCase() === "d") {
                 event.preventDefault();
                 this.addToUndoStack();
-                // Your Ctrl + D logic here
 
-                // Duplicate current solid
                 console.log("Duplicating solids");
-                const duplicated = [];
+                const duplicated: Solid[] = [];
 
-                for (const solid of this.currentSolidsSelected) {
-                    const newSolid = solid.fullClone();
-                    duplicated.push(newSolid);
-                    //this.scene.add(newSolid.getMesh())
-                    //this.solids.push(newSolid);
-                    this.addSolid(newSolid, this.getParentOfSolid(solid));
-                }
+                if (this.arrowHelperGroup) {
+                    // always pull world transforms directly from each mesh
+                    for (const solid of this.currentSolidsSelected) {
+                        const mesh = solid.getMesh();
 
-                this.currentSolidsSelected = duplicated;
+                        // 1) read out world position / quaternion / scale
+                        mesh.updateMatrixWorld(true);
+                        const worldPos = mesh.getWorldPosition(new THREE.Vector3());
+                        const worldQuat = mesh.getWorldQuaternion(new THREE.Quaternion());
+                        const worldScale = mesh.getWorldScale(new THREE.Vector3());
 
-                this.updateOutlinePass();
+                        // 2) clone the Solid and its mesh
+                        const newSolid = solid.fullClone();
+                        const newMesh = newSolid.getMesh();
 
-                if (this.currentSolidsSelected.length === 1) {
-                    this.arrowHelperAttach(this.currentSolidsSelected[0]);
-                    this.isMoving = true;
+                        // 3) apply world transforms to the clone
+                        newMesh.position.copy(worldPos);
+                        newMesh.quaternion.copy(worldQuat);
+                        newMesh.scale.copy(worldScale);
+
+                        // 4) add it into your scene & data structures
+                        this.addSolid(newSolid, this.getParentOfSolid(solid));
+                        duplicated.push(newSolid);
+                    }
                 } else {
-                    this.isMoving = true;
-                    this.arrowHelperDetach();
+                    // simple single-or-multiple duplication without a group
+                    for (const solid of this.currentSolidsSelected) {
+                        const newSolid = solid.fullClone();
+                        duplicated.push(newSolid);
+                        this.addSolid(newSolid, this.getParentOfSolid(solid));
+                    }
                 }
+
+                // 7) update selection, outline, and gizmo
+                this.currentSolidsSelected = duplicated;
+                this.updateOutlinePass();
+                this.determineArrowHelperState();
 
                 return;
             }
@@ -883,6 +1117,9 @@ export class Editor3d {
         document.addEventListener("keyup", (event: KeyboardEvent) => {
             if (event.key === "Shift") {
                 this.shiftHeldDown = false;
+            }
+            if (event.key === "Alt") {
+                this.altHeldDown = false;
             }
         });
     }
@@ -1416,6 +1653,29 @@ export class Editor3d {
         }
     }
 
+    private selectAllDescendants(target: string, ignore: string) {
+        console.log("Selecting all descendants");
+        for (const nodeId in this.solidsTree) {
+
+            const parent = this.solidsTree[nodeId].parentId;
+            console.log("NodeID: ", nodeId, "// Target:", target, "// Parent: ", parent);
+            if (parent == target && nodeId != ignore) {
+                console.log("Found: ", nodeId);
+                if (this.solidsTree[nodeId].type == "solid") {
+                    if (this.currentSolidsSelected.indexOf(this.solids[nodeId]) == -1) {
+                        this.currentSolidsSelected.push(this.solids[nodeId]);
+                    } else {
+                        this.currentSolidsSelected.splice(this.currentSolidsSelected.indexOf(this.solids[nodeId]), 1);
+                    }
+
+                } else if (this.solidsTree[nodeId].type == "group") {
+                    this.selectAllDescendants(nodeId, "hahaeeeeeeeeeeeee");
+                }
+
+            }
+        }
+    }
+
     private performRaycast() {
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
@@ -1453,6 +1713,7 @@ export class Editor3d {
                 return;
             }
             //console.log("Raycasted box; Outline override box")
+
             this.currentSolidFound = foundBox;
             //this.outlinePass.selectedObjects = [foundBox.getMesh()];
         } else {

@@ -11,26 +11,69 @@ export class Solid {
     group?: THREE.Group;
     history: Solid[] = [];
     name: string = "Solid";
+    properties: {[key: string]: {values: any[], type: string}} = {
+        position: {values: [0, 0, 0], type: "Vector3"},
+        scale: {values: [1, 1, 1], type: "Vector3"}
+    }
 
     constructor(mesh?: THREE.Mesh, name?: string) {
-
+        if (name) { this.name = name }
         this.mesh = mesh;
-
+        if (!mesh) return;
         this.group = new THREE.Group();
 
         const box = new THREE.Box3().setFromObject(this.mesh as THREE.Mesh);
         const size = new THREE.Vector3()
         box.getSize(size);
 
+        // Set properties
+        this.properties.position = {values: [mesh.position.x, mesh.position.y, mesh.position.z], type: "Vector3"}
+        this.properties.scale = {values: [mesh.scale.x, mesh.scale.y, mesh.scale.z], type: "Vector3"}
+
+        
 
 
         this.group.add(this.mesh as THREE.Mesh);
 
-        if (name) { this.name = name }
+        
 
     }
     setHistory(history: Solid[]) {
         this.history = history;
+    }
+    setProperties(newProperties: {[key: string]: {values: any[], type: string}}) {
+        if (!this.mesh) return;
+        const position = newProperties.position;
+        const x = position.values[0];
+        const y = position.values[1];
+        const z = position.values[2];
+        this.mesh.position.set(x, y, z);
+        const scale = newProperties.scale;
+        const sx = scale.values[0];
+        const sy = scale.values[1];
+        const sz = scale.values[2];
+        this.mesh.scale.set(sx, sy, sz);       
+    }
+    updateProperties() {
+        if (!this.mesh) return;
+        this.properties.position = {
+            values: [this.mesh.position.x, this.mesh.position.y, this.mesh.position.z],
+            type: "Vector3"
+        };
+        this.properties.scale = {
+            values: [this.mesh.scale.x, this.mesh.scale.y, this.mesh.scale.z],
+            type: "Vector3"
+        };
+    }
+    updatePropertyItem(key: string, values: any[]) {
+        this.properties[key].values = values;
+        // Special cases
+        if (!this.mesh) return;
+        if (key == "position") {
+            this.mesh.position.set(values[0], values[1], values[2]);
+        } else if (key == "scale") {
+            this.mesh.scale.set(values[0], values[1], values[2]);
+        }
     }
 
     fromGeometry(geometry: THREE.BufferGeometry, material: THREE.Material) {
@@ -41,7 +84,10 @@ export class Solid {
         const size = new THREE.Vector3()
         box.getSize(size);
 
-
+        // Set properties
+        const mesh = this.mesh;
+        this.properties.position = {values: [mesh.position.x, mesh.position.y, mesh.position.z], type: "Vector3"};
+        this.properties.scale = {values: [mesh.scale.x, mesh.scale.y, mesh.scale.z], type: "Vector3"};
 
         this.group.add(this.mesh);
     }
