@@ -11,6 +11,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 
+
 import { encode, decode } from "@msgpack/msgpack";
 import { inflateSync, deflateSync } from "fflate";
 
@@ -77,6 +78,7 @@ export class Editor3d {
     altHeldDown: boolean = false;
     solids: { [key: string]: Solid } = {};
     previousSize: THREE.Vector3 = new THREE.Vector3();
+    useFastCSG: boolean = true;
     // Undo
     undoStack: EditorState[] = [];
     redoStack: EditorState[] = [];
@@ -680,6 +682,14 @@ export class Editor3d {
             this.determineArrowHelperState();
             this.updateTree();
         })
+
+        const fastCSGButton: HTMLButtonElement | null = document.querySelector("#fastCSG");
+        if (!fastCSGButton) return;
+        fastCSGButton.addEventListener("click", () => {
+            this.useFastCSG = !this.useFastCSG;
+            this.setBottomToolbarButton("fastCSG", this.useFastCSG);
+        });
+        this.setBottomToolbarButton(`fastCSG`, this.useFastCSG);
     }
     private bottomToolbarButtonSetVisibility(id: string, visible: boolean) {
         const btn: HTMLButtonElement | null = document.querySelector(`#${id}`);
@@ -849,6 +859,7 @@ export class Editor3d {
     }
     private onClick(event: MouseEvent) {
         if (event.button != 0) return;
+        this.performRaycast();
         if (this.currentSolidFound == null) {
             console.error("No box hit");
             return;
@@ -857,6 +868,7 @@ export class Editor3d {
             console.error("Already moving");
             return;
         }
+        
         if ((this.shiftHeldDown == true || this.altHeldDown == true) && this.currentSolidsSelected.length > 0) {
             if (
                 this.currentSolidsSelected.indexOf(this.currentSolidFound) != -1 &&
@@ -950,9 +962,13 @@ export class Editor3d {
                 else { this.arrowHelper.setSpace("world") }
                 this.determineArrowHelperState();
             }
+            if (event.key.toLowerCase() === "u") {
+                this.useFastCSG = !this.useFastCSG;
+                this.setBottomToolbarButton("fastCSG", this.useFastCSG);
+            }
             if (event.key.toLowerCase() === 'P') {
                 event.preventDefault();
-                if (this.currentSolidsSelected.length !== 1) return;
+                if (this.currentSolidsSelected.length != 1) return;
                 this.resetPivot(this.currentSolidsSelected[0].getMesh());
             }
             if (event.altKey) {
@@ -1006,6 +1022,7 @@ export class Editor3d {
                 return;
             }
             if (event.ctrlKey && event.key.toLowerCase() === "g") {
+                event.preventDefault();
                 if (this.currentSolidsSelected.length === 0) return;
                 const first = this.currentSolidsSelected[0];
                 const firstParent = this.solidsTree[first.getMesh().uuid].parentId;
@@ -1148,11 +1165,11 @@ export class Editor3d {
 
         let C!: Solid;
         if (operation == "Union") {
-            C = A.CSG_union(B);
+            C = A.CSG_union(B, this.useFastCSG);
         } else if (operation == "Subtract") {
-            C = A.CSG_subtract(B);
+            C = A.CSG_subtract(B, this.useFastCSG);
         } else if (operation == "Intersect") {
-            C = A.CSG_intersect(B);
+            C = A.CSG_intersect(B, this.useFastCSG);
         }
         // Remove the solid with the higher index first. Don't know how that fixes it. (May or may not fix actually, I don't know when the bug happens)
         /*if (indexOfA > indexOfB) {
@@ -1726,7 +1743,7 @@ export class Editor3d {
     renderScene() {
         //this.stats.begin();
         this.controls.beforeRender();
-        this.performRaycast();
+        
         this.composer.render();
         //this.stats.end();
     }

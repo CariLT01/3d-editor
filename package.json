@@ -9,11 +9,13 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "sideEffects": false,
   "dependencies": {
     "@msgpack/msgpack": "^3.1.1",
     "fflate": "^0.8.2",
     "stats.js": "^0.17.0",
     "three": "^0.176.0",
+    "three-bvh-csg": "^0.0.17",
     "three-csg-ts": "^3.2.0",
     "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@types/msgpack": "^0.0.34",
     "@types/three": "^0.176.0",
+    "compression-webpack-plugin": "^11.1.0",
     "html-webpack-plugin": "^5.6.3",
     "raw-loader": "^4.0.2",
     "webpack-cli": "^6.0.1"

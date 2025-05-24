@@ -1,8 +1,17 @@
 import * as THREE from 'three';
+import { SUBTRACTION, INTERSECTION, ADDITION, Brush, Evaluator, CSGOperation } from 'three-bvh-csg';
 import { CSG } from 'three-csg-ts';
 interface ExportedData {
     mesh: any;          // Replace `any` with the actual type returned by toJSON()
     history: ExportedData[];
+}
+
+function ensureUVs(geom: THREE.BufferGeometry) {
+  if (!geom.attributes.uv) {
+    const count = geom.attributes.position.count;
+    const array = new Float32Array(count * 2); // all zeros
+    geom.setAttribute('uv', new THREE.BufferAttribute(array, 2));
+  }
 }
 
 export class Solid {
@@ -92,26 +101,83 @@ export class Solid {
         this.group.add(this.mesh);
     }
 
-    CSG_subtract(b: Solid) {
-        this.getMesh().updateMatrix();
-        b.getMesh().updateMatrix();
-        const n = new Solid(CSG.subtract(this.getMesh(), b.getMesh()));
+    private FastCSG_Operation(b: Solid, op: CSGOperation) {
+        this.getMesh().updateMatrixWorld(true);
+        b.getMesh().updateMatrixWorld(true);
+
+        const clonedGeometry = this.getMesh().geometry.clone();
+        ensureUVs(clonedGeometry);
+        const clonedGeometry2 = b.getMesh().geometry.clone();
+        ensureUVs(clonedGeometry2);
+
+        const brush1 = new Brush(clonedGeometry);
+        brush1.setRotationFromQuaternion(this.getMesh().quaternion);
+        brush1.position.copy(this.getMesh().position);
+        brush1.scale.copy(this.getMesh().scale);
+        brush1.updateMatrixWorld();
+
+        const brush2 = new Brush(clonedGeometry2);
+        brush2.setRotationFromQuaternion(b.getMesh().quaternion);
+        brush2.position.copy(b.getMesh().position);
+        brush2.scale.copy(b.getMesh().scale);
+        brush2.updateMatrixWorld();
+
+        const evaluator = new Evaluator();
+        const result = evaluator.evaluate(brush1, brush2, op);
+        
+        
+
+        const n = new Solid();
+        n.fromGeometry(result.geometry, this.getMesh().material as THREE.Material);
         n.setHistory([this.clone(), b.clone()]);
         return n;
     }
-    CSG_union(b: Solid) {
+
+    private StableCSG_Operation(b: Solid, op: "ADdition" | "Subtraction" | "Intersection") {
         this.getMesh().updateMatrix();
         b.getMesh().updateMatrix();
-        const n = new Solid(CSG.union(this.getMesh(), b.getMesh()));
+        let mesh;
+        if (op == "ADdition") {
+            mesh = CSG.union(this.getMesh(), b.getMesh());
+        } else if (op == "Subtraction") {
+            mesh = CSG.subtract(this.getMesh(), b.getMesh());
+        } else if (op == "Intersection") {
+            mesh = CSG.intersect(this.getMesh(), b.getMesh())
+        }
+        
+        const n = new Solid(mesh);
         n.setHistory([this.clone(), b.clone()]);
         return n;
     }
-    CSG_intersect(b: Solid) {
-        this.getMesh().updateMatrix();
-        b.getMesh().updateMatrix();
-        const n = new Solid(CSG.intersect(this.getMesh(), b.getMesh()));
-        n.setHistory([this.clone(), b.clone()]);
-        return n;
+
+    private CSG_operation(b: Solid, op: CSGOperation, use_fast: boolean) {
+        if (use_fast) {
+            return this.FastCSG_Operation(b, op);
+        } else {
+
+            let mode: "ADdition" | "Subtraction" | "Intersection";
+            if (op == ADDITION) {
+                mode = "ADdition"
+            } else if (op == SUBTRACTION) {
+                mode = "Subtraction"
+            } else if (op == INTERSECTION) {
+                mode = "Intersection"
+            } else {
+                throw new Error(`Unknown operation: ${op}`);
+            }
+
+            return this.StableCSG_Operation(b, mode)
+        }
+    }
+
+    CSG_subtract(b: Solid, use_fast: boolean) {
+        return this.CSG_operation(b, SUBTRACTION, use_fast);
+    }
+    CSG_union(b: Solid, use_fast: boolean) {
+        return this.CSG_operation(b, ADDITION, use_fast);
+    }
+    CSG_intersect(b: Solid, use_fast: boolean) {
+        return this.CSG_operation(b, INTERSECTION, use_fast);
     }
     getMesh() {
         if (this.mesh) {
