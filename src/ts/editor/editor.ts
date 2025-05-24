@@ -24,6 +24,7 @@ function degToRad(deg: number) {
 interface ExportedData {
     mesh: any; // Replace `any` with the actual type returned by toJSON()
     history: ExportedData[];
+    properties: { [key: string]: { values: any[], type: string } };
 }
 type EditorState = { [key: string]: Solid };
 
@@ -1254,6 +1255,7 @@ export class Editor3d {
             const mesh = l.parse(solid.mesh) as THREE.Mesh;
             const newSolid = new Solid(mesh);
             newSolid.setHistoryAndParse(solid.history);
+            newSolid.properties = solid.properties;
             this.solids[newSolid.getMesh().uuid] = newSolid;
             this.scene.add(newSolid.getMesh());
         }

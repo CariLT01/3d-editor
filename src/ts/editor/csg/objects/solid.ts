@@ -4,6 +4,7 @@ import { CSG } from 'three-csg-ts';
 interface ExportedData {
     mesh: any;          // Replace `any` with the actual type returned by toJSON()
     history: ExportedData[];
+    properties: { [key: string]: { values: any[], type: string } };
 }
 
 function ensureUVs(geom: THREE.BufferGeometry) {
@@ -398,7 +399,8 @@ export class Solid {
 
         return {
             mesh: this.getMesh().toJSON(),
-            history: exportedHistory
+            history: exportedHistory,
+            properties: this.properties
         }
 
     }

@@ -38,13 +38,7 @@ module.exports = {
         removeRedundantAttributes: true,
         useShortDoctype: true
       }
-    }),
-    new CompressionPlugin({
-      algorithm: 'gzip',
-      test: /\.(js|css|html|svg)$/,
-      threshold: 10240,       // Only assets bigger than this are processed (in bytes)
-      minRatio: 0.8,          // Only assets that compress better than this ratio are processed
-    }),
+    })
   ],
   mode: 'production',
 };
