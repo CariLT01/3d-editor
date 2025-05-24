@@ -7,6 +7,12 @@
     <title>Document</title>
 
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+
+        * {
+            font-family: "Open Sans", sans-serif;
+        }
+
         body {
             padding: 0;
             margin: 0;
@@ -187,6 +193,7 @@
             cursor: pointer;
             text-align: left;
             margin-top: -1px;
+            border-radius: 6px;
         }
 
         .tree-item:focus {
@@ -198,8 +205,9 @@
             width: 100%;
             text-align: center;
             margin-top: 5px;
-            margin-bottom: 0;
-            font-size: 1.5rem;
+            margin-bottom: 5px;
+            font-size: 1rem;
+            border-bottom: 1px solid #36383b;
         }
 
         /* Bottom toolbar */
@@ -284,7 +292,7 @@
             transform: translate(-50%, -50%);
             font-size: 0.7rem;
         }
-
+        /* Properties tab */
         .properties-tab {
             position: fixed;
             right: 0;
@@ -295,6 +303,70 @@
             backdrop-filter: blur(8px);
             border: 1px solid #36383b;
             color: white;
+            
+        }
+        .properties-title {
+            margin-top: 5px;
+            padding-bottom: 3px;
+            margin-bottom: 0;
+            border-bottom: 1px solid #36383b;
+            width: 100%;
+            text-align: center;
+        }
+        .property-item {
+            display: flex;
+            height: 2rem;
+            align-items: center;
+            overflow-x: hidden;
+        }
+        .property-item input {
+            flex-grow: 1 1 auto;
+            margin-right: 5px;
+            min-width: 25px;
+            width: auto;
+            border-radius: 6px;
+            background-color: transparent;
+            color: white;
+            border: 1px solid #36383b;
+            padding: 0 4px;
+        }
+        .property-item label {
+            font-size: 0.7rem;
+            white-space: nowrap;
+            margin-right: 5px;
+        }
+
+        /* speed-multiplier */
+        .speed-multiplier-container {
+            position: fixed;
+            right: calc(max(200px, 10vw) + 10px);
+            bottom: 5px;
+            height: max(3vh, 50px);
+        }
+
+        .speed-multiplier {
+            color: white;
+
+            display: flex;
+            align-items: center;
+            padding: 1px 6px;
+            border-radius: 6px;
+            border: 1px solid #36383b;
+        }
+
+        .speed-multiplier-icon {
+            width: 1.5rem !important;
+            height: 1.5rem !important;
+            margin-right: 10px;
+            filter: invert(100%);
+        }
+        .speed-multiplier-data {
+            display: flex;
+            flex-direction: column;
+        }
+        .speed-multiplier-label {
+            color: grey;
+            font-size: 0.7rem;
         }
     </style>
 </head>
@@ -409,7 +481,13 @@
         </div>
     </div>
     <div class="properties-tab">
-        <div class="properties-items" id="properties"></div>
+        <h3 class="properties-title">Properties</h3>
+        <div class="properties-items" id="properties">
+            <div class="property-item">
+                <label for="">Test propety</label>
+                <input type="text" value="28, 17, 6">
+            </div>
+        </div>
     </div>
     <div class="bottom-toolbar">
         <div class="bottom-buttons-list">
@@ -453,6 +531,16 @@
             </button>
         </div>
     </div>
+    <div class="speed-multiplier-container">
+        <div class="speed-multiplier">
+<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" class="speed-multiplier-icon"><path d="M418-340q24 24 62 23.5t56-27.5l224-336-336 224q-27 18-28.5 55t22.5 61Zm62-460q59 0 113.5 16.5T696-734l-76 48q-33-17-68.5-25.5T480-720q-133 0-226.5 93.5T160-400q0 42 11.5 83t32.5 77h552q23-38 33.5-79t10.5-85q0-36-8.5-70T766-540l48-76q30 47 47.5 100T880-406q1 57-13 109t-41 99q-11 18-30 28t-40 10H204q-21 0-40-10t-30-28q-26-45-40-95.5T80-400q0-83 31.5-155.5t86-127Q252-737 325-768.5T480-800Zm7 313Z"/></svg>
+            <div class="speed-multiplier-data">
+                <span class="speed-multiplier-label">Movement Speed</span>
+                <span class="speed-multipler-value" id="speed">1.0</span>
+            </div>
+        </div>
+    </div>
+
 </body>
 
 </html>

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const FORWARD_MOVEMENT_SPEED = 0.2;
-const ROTATION_SPEED = 6;
+const ROTATION_SPEED = 4.5;
 const WHEEL_MOVEMENT_SPEED = 1.3;
 const MOUSE_PAN_SPEED = 15;
 const WM_FM_RATIO = WHEEL_MOVEMENT_SPEED / FORWARD_MOVEMENT_SPEED;
@@ -73,7 +73,15 @@ export class CameraController {
             this.mouseMovementY = event.movementY;
         });
         document.addEventListener("wheel", (event: WheelEvent) => {
-            this.scrollWheelDelta = event.deltaY;
+            if (this.rightMouseButtonPressed) {
+                this.speedMultiplier += -event.deltaY / 500;
+                this.speedMultiplier = Math.max(this.speedMultiplier, 0.1);
+                this.speedMultiplier = Math.min(this.speedMultiplier, 20);
+                this.updateSpeedMultiplierUI();
+            } else {
+                this.scrollWheelDelta = event.deltaY;
+            }
+            
         })
     }
 
@@ -154,6 +162,14 @@ export class CameraController {
 
 
     }
+
+    private updateSpeedMultiplierUI() {
+        const a: HTMLSpanElement | null = document.querySelector("#speed");
+        if (a) {
+            a.innerText = `${(Math.round(this.speedMultiplier * 10) / 10).toString()}x`;
+        }
+    }
+
     private mousePanUpdate() {
         if (!this.middleMouseButtonPressed) {
             document.body.style.cursor = "default";

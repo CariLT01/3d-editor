@@ -51,6 +51,20 @@ function getAllMeshes(object: THREE.Object3D): THREE.Mesh[] {
     console.log(meshes.length);
     return meshes;
 }
+function rgbToHex(r: number, g: number, b: number) {
+    return "#" + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function hexToRgb(hex: string): [number, number, number] {
+    hex = hex.replace(/^#/, "");
+    if (hex.length === 3) {
+        hex = hex.split("").map(c => c + c).join("");
+    }
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return [r, g, b];
+}
 
 export class Editor3d {
     camera!: THREE.PerspectiveCamera;
@@ -133,6 +147,8 @@ export class Editor3d {
         this.updateOutlinePass();
     }
 
+
+
     private updatePropertiesTab() {
         const propertiesTab: HTMLDivElement | null = document.querySelector("#properties");
         if (!propertiesTab) {
@@ -142,11 +158,11 @@ export class Editor3d {
         if (this.currentSolidsSelected.length !== 1) {
             propertiesTab.innerHTML = '';
             if (!propertiesTab.parentElement) return;
-            propertiesTab.parentElement.style.display = "none";
+            //propertiesTab.parentElement.style.display = "none";
             return;
         } else {
             if (!propertiesTab.parentElement) return;
-            propertiesTab.parentElement.style.display = "block";
+            //propertiesTab.parentElement.style.display = "block";
         }
 
         propertiesTab.innerHTML = '';
@@ -162,6 +178,7 @@ export class Editor3d {
             // New entry
 
             const propertyItemDiv = document.createElement("div");
+            propertyItemDiv.classList.add("property-item");
             const propertyLabelElement = document.createElement("label");
 
             propertyLabelElement.innerText = propertyName;
@@ -183,20 +200,37 @@ export class Editor3d {
                         console.error("Number of numbers not equals to 3: ", numbers.length);
                         return;
                     }
-                    if (propertyName == "position") {
-                        console.log("Position set to: ", numbers);
-                        solid.updatePropertyItem("position", numbers);
-                    } else if (propertyName == "scale") {
-                        console.log("Scale set to: ", numbers);
-                        solid.updatePropertyItem("scale", numbers);
-                    } else {
-                        console.error("Unrecognized property name: ", propertyName);
-                    }
+                    solid.updatePropertyItem(propertyName, numbers);
 
                 })
 
 
-            } else {
+            } else if (propertyValue.type == "Color") {
+                const inputElement = document.createElement("input");
+                inputElement.type = "color";
+                inputElement.value = rgbToHex(propertyValue.values[0], propertyValue.values[1], propertyValue.values[2]);
+
+                propertyItemDiv.appendChild(inputElement);
+
+                inputElement.addEventListener("input", () => {
+                    const rgb = hexToRgb(inputElement.value);
+                    solid.updatePropertyItem(propertyName, rgb);
+                })
+            } else if (propertyValue.type == "Number") {
+                const inputElement = document.createElement("input");
+                inputElement.type = "number";
+                inputElement.value = propertyValue.values[0];
+
+                propertyItemDiv.appendChild(inputElement);
+
+                inputElement.addEventListener("input", () => {
+                    const value = inputElement.valueAsNumber;
+                    console.log("Send:", propertyName, "=", [value]);
+                    solid.updatePropertyItem(propertyName, [value]);
+                });
+            }
+
+            else {
                 console.warn("Unrecognized property type: ", propertyValue.type);
             }
 
@@ -868,7 +902,7 @@ export class Editor3d {
             console.error("Already moving");
             return;
         }
-        
+
         if ((this.shiftHeldDown == true || this.altHeldDown == true) && this.currentSolidsSelected.length > 0) {
             if (
                 this.currentSolidsSelected.indexOf(this.currentSolidFound) != -1 &&
@@ -882,12 +916,12 @@ export class Editor3d {
                     1
                 );
                 console.log(this.currentSolidsSelected.indexOf(this.currentSolidFound));*/
-                const i=this.currentSolidsSelected.indexOf(this.currentSolidFound);
-                if (i!=-1){this.currentSolidsSelected.splice(i,1)}
-                else{
+                const i = this.currentSolidsSelected.indexOf(this.currentSolidFound);
+                if (i != -1) { this.currentSolidsSelected.splice(i, 1) }
+                else {
                     this.currentSolidsSelected.push(this.currentSolidFound);
                 }
-                
+
                 if (!this.altHeldDown) {
                     const parent = this.solidsTree[this.currentSolidFound.getMesh().uuid]?.parentId || "hahahaeeeeeeeeeeee";
                     this.selectAllDescendants(parent, this.currentSolidFound.getMesh().uuid);
@@ -1334,23 +1368,58 @@ export class Editor3d {
             throw new Error("Solid has no history");
         }
 
-        const SolidA = solid.history[0].clone();
-        const SolidB = solid.history[1].clone();
+
+        this.addToUndoStack();
+
+        const originalSolid = solid;
+        const SolidA = originalSolid.history[0].clone();
+        const SolidB = originalSolid.history[1].clone();
+
+        // Get the original matrices of the cloned solids from history
+        const matrixAOriginal = SolidA.getMesh().matrix.clone();
+        const matrixBOriginal = SolidB.getMesh().matrix.clone();
+
+        // Get the current world matrix of the original solid being separated
+        const matrixC = originalSolid.getMesh().matrixWorld.clone();
+
+        // Compute new matrices by multiplying original matrices with the current matrixC
+        const matrixANew = new THREE.Matrix4().multiplyMatrices(matrixC, matrixAOriginal);
+        const matrixBNew = new THREE.Matrix4().multiplyMatrices(matrixC, matrixBOriginal);
+
+        // Decompose the new matrices into position, rotation, and scale
+        const positionA = new THREE.Vector3();
+        const rotationA = new THREE.Quaternion();
+        const scaleA = new THREE.Vector3();
+        matrixANew.decompose(positionA, rotationA, scaleA);
+
+        const positionB = new THREE.Vector3();
+        const rotationB = new THREE.Quaternion();
+        const scaleB = new THREE.Vector3();
+        matrixBNew.decompose(positionB, rotationB, scaleB);
+
+        // Apply the decomposed values to the cloned solids
+        SolidA.getMesh().position.copy(positionA);
+        SolidA.getMesh().rotation.setFromQuaternion(rotationA);
+        SolidA.getMesh().scale.copy(scaleA);
+        SolidA.updateProperties(); // Update properties to match new transform
+
+        SolidB.getMesh().position.copy(positionB);
+        SolidB.getMesh().rotation.setFromQuaternion(rotationB);
+        SolidB.getMesh().scale.copy(scaleB);
+        SolidB.updateProperties();
 
         this.arrowHelperDetach();
-        this.scene.remove(solid.getMesh());
-        solid.dispose();
+        this.scene.remove(originalSolid.getMesh());
+        originalSolid.dispose();
 
-        this.addSolid(SolidA, this.getParentOfSolid(solid));
-        this.addSolid(SolidB, this.getParentOfSolid(solid));
+        this.addSolid(SolidA, this.getParentOfSolid(originalSolid));
+        this.addSolid(SolidB, this.getParentOfSolid(originalSolid));
 
-        this.deleteSolid(solid);
+        this.deleteSolid(originalSolid);
 
         this.currentSolidsSelected = [];
         this.updateOutlinePass();
         this.isMoving = false;
-
-        this.addToUndoStack();
     }
 
     private importGroup(group: THREE.Group<THREE.Object3DEventMap>) {
@@ -1743,7 +1812,7 @@ export class Editor3d {
     renderScene() {
         //this.stats.begin();
         this.controls.beforeRender();
-        
+
         this.composer.render();
         //this.stats.end();
     }
