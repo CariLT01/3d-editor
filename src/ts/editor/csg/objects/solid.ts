@@ -140,17 +140,22 @@ export class Solid {
     }
     private checkLightExistence(shouldExist: boolean) {
         if (!this.mesh) return;
+
+        const existingLight = this.mesh.children.find(
+            (child) => child instanceof THREE.Light && child.type === this.light.type
+        );
+
         if (shouldExist) {
-            if (this.mesh.children.indexOf(this.light) == -1) {
+            if (!existingLight) {
                 console.log("Adding light to mesh");
                 this.mesh.add(this.light);
             } else {
-                console.warn("Not adding light, as it already exists");
+                console.warn("Not adding light, as a light of the same type already exists");
             }
         } else {
-            if (this.mesh.children.indexOf(this.light) != -1) {
+            if (existingLight) {
                 console.log("Removing light from mesh");
-                this.mesh.remove(this.light);
+                this.mesh.remove(existingLight);
             } else {
                 console.warn("Not removing light, as it does not exist");
             }
