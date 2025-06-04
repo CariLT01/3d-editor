@@ -1,4 +1,59 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Document</title><style>@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Document</title><style>.spinner {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3.8px solid #ffffff;
+            animation: spinner-bulqg1 0.8s infinite linear alternate,
+                spinner-oaa3wk 1.6s infinite linear;
+        }
+
+        @keyframes spinner-bulqg1 {
+            0% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 50% 0%, 50% 0%, 50% 0%, 50% 0%);
+            }
+
+            12.5% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 100% 0%, 100% 0%, 100% 0%, 100% 0%);
+            }
+
+            25% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 100% 0%, 100% 100%, 100% 100%, 100% 100%);
+            }
+
+            50% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 100% 0%, 100% 100%, 50% 100%, 0% 100%);
+            }
+
+            62.5% {
+                clip-path: polygon(50% 50%, 100% 0, 100% 0%, 100% 0%, 100% 100%, 50% 100%, 0% 100%);
+            }
+
+            75% {
+                clip-path: polygon(50% 50%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 50% 100%, 0% 100%);
+            }
+
+            100% {
+                clip-path: polygon(50% 50%, 50% 100%, 50% 100%, 50% 100%, 50% 100%, 50% 100%, 0% 100%);
+            }
+        }
+
+        @keyframes spinner-oaa3wk {
+            0% {
+                transform: scaleY(1) rotate(0deg);
+            }
+
+            49.99% {
+                transform: scaleY(1) rotate(135deg);
+            }
+
+            50% {
+                transform: scaleY(-1) rotate(0deg);
+            }
+
+            100% {
+                transform: scaleY(-1) rotate(-135deg);
+            }
+        }</style><style>@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 
         * {
             font-family: "Open Sans", sans-serif;
@@ -92,7 +147,7 @@
             height: 50%;
             border: 1px solid #36383b;
             width: max(200px, 10vw);
-            z-index: 2147483647;
+            z-index: 98;
             user-select: none;
             background-color: transparent;
             backdrop-filter: blur(8px);
@@ -135,7 +190,7 @@
 
         .import3D_prompt {
             position: fixed;
-            z-index: 2147483647;
+            z-index: 99;
             backdrop-filter: blur(8px);
             border: 1px solid #36383b;
             width: 70vw;
@@ -283,6 +338,7 @@
             transform: translate(-50%, -50%);
             font-size: 0.7rem;
         }
+
         /* Properties tab */
         .properties-tab {
             position: fixed;
@@ -294,8 +350,9 @@
             backdrop-filter: blur(8px);
             border: 1px solid #36383b;
             color: white;
-            
+
         }
+
         .properties-title {
             margin-top: 5px;
             padding-bottom: 3px;
@@ -304,12 +361,14 @@
             width: 100%;
             text-align: center;
         }
+
         .property-item {
             display: flex;
             height: 2rem;
             align-items: center;
             overflow-x: hidden;
         }
+
         .property-item input {
             flex-grow: 1 1 auto;
             margin-right: 5px;
@@ -321,6 +380,7 @@
             border: 1px solid #36383b;
             padding: 0 4px;
         }
+
         .property-item label {
             font-size: 0.7rem;
             white-space: nowrap;
@@ -352,11 +412,45 @@
             margin-right: 10px;
             filter: invert(100%);
         }
+
         .speed-multiplier-data {
             display: flex;
             flex-direction: column;
         }
+
         .speed-multiplier-label {
             color: grey;
             font-size: 0.7rem;
-        }</style><script defer="defer" src="bundle.js"></script></head><body><div class="toolbar"><div class="toolbar-category"><span class="toolbar-category-label">Constructive Solid Geometry</span><div class="toolbar-category-items"><button id="union" class="toolbar-button"><img src="https://www.svgrepo.com/show/379286/union.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Union</span></button> <button id="subtract" class="toolbar-button"><img src="https://www.svgrepo.com/show/489162/subtract.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Subtract</span></button> <button id="intersect" class="toolbar-button"><img src="https://www.svgrepo.com/show/239888/intersecting-intersection.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Intersect</span></button> <button id="seperate" class="toolbar-button"><img src="https://www.svgrepo.com/show/341066/split.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Seperate</span></button></div></div><div class="toolbar-category"><span class="toolbar-category-label">New solid</span><div class="toolbar-category-items"><button id="cube" class="toolbar-button"><img src="https://www.svgrepo.com/show/532930/cube.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Cube</span></button> <button id="sphere" class="toolbar-button"><img src="https://www.svgrepo.com/show/221292/sphere.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Sphere</span></button> <button id="cylinder" class="toolbar-button"><img src="https://www.svgrepo.com/show/333878/cylinder.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Cylinder</span></button> <button id="wedge" class="toolbar-button"><img src="https://www.svgrepo.com/show/364326/cell-signal-none-fill.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Wedge</span></button></div></div><div class="toolbar-category"><span class="toolbar-category-label">Import/Export</span><div class="toolbar-category-items"><button id="importScene" class="toolbar-button"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="toolbar-button-icon"><path d="M440-200h80v-167l64 64 56-57-160-160-160 160 57 56 63-63v167ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z"/></svg> <span class="toolbar-button-text">Load scene</span></button> <button id="exportScene" class="toolbar-button"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="toolbar-button-icon"><path d="M840-680v480q0 33-23.5 56.5T760-120H200q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h480l160 160Zm-80 34L646-760H200v560h560v-446ZM480-240q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35ZM240-560h360v-160H240v160Zm-40-86v446-560 114Z"/></svg> <span class="toolbar-button-text">Save scene</span></button> <button id="import3D" class="toolbar-button"><img src="https://www.svgrepo.com/show/513861/upload.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Import 3D</span></button> <button id="exportSceneSTL" class="toolbar-button"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="toolbar-button-icon"><path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg> <span class="toolbar-button-text">Download STL</span></button></div></div><input type="file" name="" id="importSceneInput" style="display: none"></div><div class="import3D_prompt" id="import3D_prompt"><h2 class="prompt-title">Import solid</h2><p class="prompt-note">(Hopefully) Supported formats: .fbx .glb .gltf .obj .stl</p><p class="prompt-note">Warning: untested code. Expect glitches.</p><div class="center"><input type="file" id="import3D_input"></div><div class="center"><button id="import3D_import">Import</button></div></div><div class="explorer"><h3 class="explorer-title">Graph</h3><div class="explorer-items" id="tree"><div><ul><li><button class="tree-highlighted tree-item" data-node-id="1ae6d7ed-e445-4481-8d04-012a8bd625ed">Solid</button></li></ul></div></div></div><div class="properties-tab"><h3 class="properties-title">Properties</h3><div class="properties-items" id="properties"><div class="property-item"><label for="">Test propety</label> <input value="28, 17, 6"></div></div></div><div class="bottom-toolbar"><div class="bottom-buttons-list"><button class="bottom-button-with-icon" id="localspace"><img src="https://www.svgrepo.com/show/369740/axis-x.svg" alt="" class="bottom-button-icon"> <span class="bottom-button-text">Local space</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">L</span></div></button> <button class="bottom-button-with-icon" id="resetPivot"><img src="https://www.svgrepo.com/show/509267/target.svg" alt="" class="bottom-button-icon icon-smaller"> <span class="bottom-button-text">Reset pivot</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">P</span></div></button> <button class="bottom-button-with-icon" id="hideSolids"><img src="https://cdn3.iconfinder.com/data/icons/google-material-design-icons/48/ic_visibility_48px-512.png" alt="" class="bottom-button-icon icon-smaller"> <span class="bottom-button-text">Toggle visiblity</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">V</span></div></button> <button class="bottom-button-with-icon" id="fastCSG"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="bottom-button-icon icon-smaller"><path d="m280-80 160-300-320-40 480-460h80L520-580l320 40L360-80h-80Zm222-247 161-154-269-34 63-117-160 154 268 33-63 118Zm-22-153Z"/></svg> <span class="bottom-button-text">Fast CSG</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">U</span></div></button></div></div><div class="speed-multiplier-container"><div class="speed-multiplier"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" class="speed-multiplier-icon"><path d="M418-340q24 24 62 23.5t56-27.5l224-336-336 224q-27 18-28.5 55t22.5 61Zm62-460q59 0 113.5 16.5T696-734l-76 48q-33-17-68.5-25.5T480-720q-133 0-226.5 93.5T160-400q0 42 11.5 83t32.5 77h552q23-38 33.5-79t10.5-85q0-36-8.5-70T766-540l48-76q30 47 47.5 100T880-406q1 57-13 109t-41 99q-11 18-30 28t-40 10H204q-21 0-40-10t-30-28q-26-45-40-95.5T80-400q0-83 31.5-155.5t86-127Q252-737 325-768.5T480-800Zm7 313Z"/></svg><div class="speed-multiplier-data"><span class="speed-multiplier-label">Movement Speed</span> <span class="speed-multipler-value" id="speed">1.0</span></div></div></div></body></html>
+        }
+
+        /* Loading screen */
+
+        .loading-screen-container {
+            background-color: #000;
+            position: fixed;
+            z-index: 2147483647;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .loading-screen-content {
+            color: white;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .loading-screen-title {
+            font-size: 2rem;
+            font-weight: 300;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .bold-kw {
+            font-weight: 700;
+        }</style><script defer="defer" src="bundle.js"></script></head><body><div class="loading-screen-container" id="loading-screen"><div class="loading-screen-content"><div class="loading-screen-title"><div><span>CSG Editor</span> <span class="bold-kw">3D</span></div><div class="spinner loading-screen-spinner"></div></div></div></div><div class="toolbar"><div class="toolbar-category"><span class="toolbar-category-label">Constructive Solid Geometry</span><div class="toolbar-category-items"><button id="union" class="toolbar-button"><img src="https://www.svgrepo.com/show/379286/union.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Union</span></button> <button id="subtract" class="toolbar-button"><img src="https://www.svgrepo.com/show/489162/subtract.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Subtract</span></button> <button id="intersect" class="toolbar-button"><img src="https://www.svgrepo.com/show/239888/intersecting-intersection.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Intersect</span></button> <button id="seperate" class="toolbar-button"><img src="https://www.svgrepo.com/show/341066/split.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Seperate</span></button></div></div><div class="toolbar-category"><span class="toolbar-category-label">New solid</span><div class="toolbar-category-items"><button id="cube" class="toolbar-button"><img src="https://www.svgrepo.com/show/532930/cube.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Cube</span></button> <button id="sphere" class="toolbar-button"><img src="https://www.svgrepo.com/show/221292/sphere.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Sphere</span></button> <button id="cylinder" class="toolbar-button"><img src="https://www.svgrepo.com/show/333878/cylinder.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Cylinder</span></button> <button id="wedge" class="toolbar-button"><img src="https://www.svgrepo.com/show/364326/cell-signal-none-fill.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Wedge</span></button></div></div><div class="toolbar-category"><span class="toolbar-category-label">Import/Export</span><div class="toolbar-category-items"><button id="importScene" class="toolbar-button"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="toolbar-button-icon"><path d="M440-200h80v-167l64 64 56-57-160-160-160 160 57 56 63-63v167ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z"/></svg> <span class="toolbar-button-text">Load scene</span></button> <button id="exportScene" class="toolbar-button"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="toolbar-button-icon"><path d="M840-680v480q0 33-23.5 56.5T760-120H200q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h480l160 160Zm-80 34L646-760H200v560h560v-446ZM480-240q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35ZM240-560h360v-160H240v160Zm-40-86v446-560 114Z"/></svg> <span class="toolbar-button-text">Save scene</span></button> <button id="import3D" class="toolbar-button"><img src="https://www.svgrepo.com/show/513861/upload.svg" alt="" class="toolbar-button-icon"> <span class="toolbar-button-text">Import 3D</span></button> <button id="exportSceneSTL" class="toolbar-button"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="toolbar-button-icon"><path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg> <span class="toolbar-button-text">Download STL</span></button></div></div><input type="file" name="" id="importSceneInput" style="display: none"></div><div class="import3D_prompt" id="import3D_prompt"><h2 class="prompt-title">Import solid</h2><p class="prompt-note">(Hopefully) Supported formats: .fbx .glb .gltf .obj .stl</p><p class="prompt-note">Warning: untested code. Expect glitches.</p><div class="center"><input type="file" id="import3D_input"></div><div class="center"><button id="import3D_import">Import</button></div></div><div class="explorer"><h3 class="explorer-title">Graph</h3><div class="explorer-items" id="tree"><div><ul><li><button class="tree-highlighted tree-item" data-node-id="1ae6d7ed-e445-4481-8d04-012a8bd625ed">Solid</button></li></ul></div></div></div><div class="properties-tab"><h3 class="properties-title">Properties</h3><div class="properties-items" id="properties"><div class="property-item"><label for="">Test propety</label> <input value="28, 17, 6"></div></div></div><div class="bottom-toolbar"><div class="bottom-buttons-list"><button class="bottom-button-with-icon" id="localspace"><img src="https://www.svgrepo.com/show/369740/axis-x.svg" alt="" class="bottom-button-icon"> <span class="bottom-button-text">Local space</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">L</span></div></button> <button class="bottom-button-with-icon" id="resetPivot"><img src="https://www.svgrepo.com/show/509267/target.svg" alt="" class="bottom-button-icon icon-smaller"> <span class="bottom-button-text">Reset pivot</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">P</span></div></button> <button class="bottom-button-with-icon" id="hideSolids"><img src="https://cdn3.iconfinder.com/data/icons/google-material-design-icons/48/ic_visibility_48px-512.png" alt="" class="bottom-button-icon icon-smaller"> <span class="bottom-button-text">Toggle visiblity</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">V</span></div></button> <button class="bottom-button-with-icon" id="fastCSG"><svg xmlns="http://www.w3.org/2000/svg" height="2rem" viewBox="0 -960 960 960" width="2rem" fill="#1f1f1f" class="bottom-button-icon icon-smaller"><path d="m280-80 160-300-320-40 480-460h80L520-580l320 40L360-80h-80Zm222-247 161-154-269-34 63-117-160 154 268 33-63 118Zm-22-153Z"/></svg> <span class="bottom-button-text">Fast CSG</span><div class="bottom-button-key"><img src="https://www.svgrepo.com/show/519431/square.svg" alt="" class="key-bg"> <span class="key">U</span></div></button></div></div><div class="speed-multiplier-container"><div class="speed-multiplier"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" class="speed-multiplier-icon"><path d="M418-340q24 24 62 23.5t56-27.5l224-336-336 224q-27 18-28.5 55t22.5 61Zm62-460q59 0 113.5 16.5T696-734l-76 48q-33-17-68.5-25.5T480-720q-133 0-226.5 93.5T160-400q0 42 11.5 83t32.5 77h552q23-38 33.5-79t10.5-85q0-36-8.5-70T766-540l48-76q30 47 47.5 100T880-406q1 57-13 109t-41 99q-11 18-30 28t-40 10H204q-21 0-40-10t-30-28q-26-45-40-95.5T80-400q0-83 31.5-155.5t86-127Q252-737 325-768.5T480-800Zm7 313Z"/></svg><div class="speed-multiplier-data"><span class="speed-multiplier-label">Movement Speed</span> <span class="speed-multipler-value" id="speed">1.0</span></div></div></div></body></html>

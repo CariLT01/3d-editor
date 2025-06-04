@@ -5,7 +5,64 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
+    <style>
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3.8px solid #ffffff;
+            animation: spinner-bulqg1 0.8s infinite linear alternate,
+                spinner-oaa3wk 1.6s infinite linear;
+        }
 
+        @keyframes spinner-bulqg1 {
+            0% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 50% 0%, 50% 0%, 50% 0%, 50% 0%);
+            }
+
+            12.5% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 100% 0%, 100% 0%, 100% 0%, 100% 0%);
+            }
+
+            25% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 100% 0%, 100% 100%, 100% 100%, 100% 100%);
+            }
+
+            50% {
+                clip-path: polygon(50% 50%, 0 0, 50% 0%, 100% 0%, 100% 100%, 50% 100%, 0% 100%);
+            }
+
+            62.5% {
+                clip-path: polygon(50% 50%, 100% 0, 100% 0%, 100% 0%, 100% 100%, 50% 100%, 0% 100%);
+            }
+
+            75% {
+                clip-path: polygon(50% 50%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 50% 100%, 0% 100%);
+            }
+
+            100% {
+                clip-path: polygon(50% 50%, 50% 100%, 50% 100%, 50% 100%, 50% 100%, 50% 100%, 0% 100%);
+            }
+        }
+
+        @keyframes spinner-oaa3wk {
+            0% {
+                transform: scaleY(1) rotate(0deg);
+            }
+
+            49.99% {
+                transform: scaleY(1) rotate(135deg);
+            }
+
+            50% {
+                transform: scaleY(-1) rotate(0deg);
+            }
+
+            100% {
+                transform: scaleY(-1) rotate(-135deg);
+            }
+        }
+    </style>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 
@@ -101,7 +158,7 @@
             height: 50%;
             border: 1px solid #36383b;
             width: max(200px, 10vw);
-            z-index: 2147483647;
+            z-index: 98;
             user-select: none;
             background-color: transparent;
             backdrop-filter: blur(8px);
@@ -144,7 +201,7 @@
 
         .import3D_prompt {
             position: fixed;
-            z-index: 2147483647;
+            z-index: 99;
             backdrop-filter: blur(8px);
             border: 1px solid #36383b;
             width: 70vw;
@@ -292,6 +349,7 @@
             transform: translate(-50%, -50%);
             font-size: 0.7rem;
         }
+
         /* Properties tab */
         .properties-tab {
             position: fixed;
@@ -303,8 +361,9 @@
             backdrop-filter: blur(8px);
             border: 1px solid #36383b;
             color: white;
-            
+
         }
+
         .properties-title {
             margin-top: 5px;
             padding-bottom: 3px;
@@ -313,12 +372,14 @@
             width: 100%;
             text-align: center;
         }
+
         .property-item {
             display: flex;
             height: 2rem;
             align-items: center;
             overflow-x: hidden;
         }
+
         .property-item input {
             flex-grow: 1 1 auto;
             margin-right: 5px;
@@ -330,6 +391,7 @@
             border: 1px solid #36383b;
             padding: 0 4px;
         }
+
         .property-item label {
             font-size: 0.7rem;
             white-space: nowrap;
@@ -361,18 +423,64 @@
             margin-right: 10px;
             filter: invert(100%);
         }
+
         .speed-multiplier-data {
             display: flex;
             flex-direction: column;
         }
+
         .speed-multiplier-label {
             color: grey;
             font-size: 0.7rem;
+        }
+
+        /* Loading screen */
+
+        .loading-screen-container {
+            background-color: #000;
+            position: fixed;
+            z-index: 2147483647;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .loading-screen-content {
+            color: white;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .loading-screen-title {
+            font-size: 2rem;
+            font-weight: 300;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .bold-kw {
+            font-weight: 700;
         }
     </style>
 </head>
 
 <body>
+    <div class="loading-screen-container" id="loading-screen">
+        <div class="loading-screen-content">
+            <div class="loading-screen-title">
+                <div>
+                    <span>CSG Editor</span>
+                    <span class="bold-kw">3D</span>
+                </div>
+                <div class="spinner loading-screen-spinner"></div>
+            </div>
+            
+        </div>
+    </div>
     <div class="toolbar">
         <div class="toolbar-category">
             <span class="toolbar-category-label">Constructive Solid Geometry</span>
@@ -534,7 +642,11 @@
     </div>
     <div class="speed-multiplier-container">
         <div class="speed-multiplier">
-<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" class="speed-multiplier-icon"><path d="M418-340q24 24 62 23.5t56-27.5l224-336-336 224q-27 18-28.5 55t22.5 61Zm62-460q59 0 113.5 16.5T696-734l-76 48q-33-17-68.5-25.5T480-720q-133 0-226.5 93.5T160-400q0 42 11.5 83t32.5 77h552q23-38 33.5-79t10.5-85q0-36-8.5-70T766-540l48-76q30 47 47.5 100T880-406q1 57-13 109t-41 99q-11 18-30 28t-40 10H204q-21 0-40-10t-30-28q-26-45-40-95.5T80-400q0-83 31.5-155.5t86-127Q252-737 325-768.5T480-800Zm7 313Z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"
+                class="speed-multiplier-icon">
+                <path
+                    d="M418-340q24 24 62 23.5t56-27.5l224-336-336 224q-27 18-28.5 55t22.5 61Zm62-460q59 0 113.5 16.5T696-734l-76 48q-33-17-68.5-25.5T480-720q-133 0-226.5 93.5T160-400q0 42 11.5 83t32.5 77h552q23-38 33.5-79t10.5-85q0-36-8.5-70T766-540l48-76q30 47 47.5 100T880-406q1 57-13 109t-41 99q-11 18-30 28t-40 10H204q-21 0-40-10t-30-28q-26-45-40-95.5T80-400q0-83 31.5-155.5t86-127Q252-737 325-768.5T480-800Zm7 313Z" />
+            </svg>
             <div class="speed-multiplier-data">
                 <span class="speed-multiplier-label">Movement Speed</span>
                 <span class="speed-multipler-value" id="speed">1.0</span>
