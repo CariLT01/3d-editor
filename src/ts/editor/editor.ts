@@ -10,7 +10,9 @@ import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
-
+import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
+import { GTAOPass }     from 'three/examples/jsm/postprocessing/GTAOPass';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 import { encode, decode } from "@msgpack/msgpack";
 import { inflateSync, deflateSync } from "fflate";
@@ -124,6 +126,8 @@ export class Editor3d {
             type: string;
         };
     } = {};
+
+    clock: THREE.Clock = new THREE.Clock()
 
     constructor() {
         console.log("Creating new instance of Editor3D");
@@ -539,64 +543,110 @@ export class Editor3d {
     }
 
     private initializeBasics() {
+        // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
-        this.renderer.setSize(innerWidth, innerHeight);
 
-        this.composer = new EffectComposer(this.renderer);
-
-        this.camera = new THREE.PerspectiveCamera();
-        this.camera.position.set(0, 1, 5);
-
-        this.camera.aspect = innerWidth / innerHeight;
-        this.camera.updateProjectionMatrix();
+        // Scene
         this.scene = new THREE.Scene();
 
+        // Camera (with correct parameters)
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+        this.camera.position.set(0, 1, 5);
+
+        // Composer
+        this.composer = new EffectComposer(this.renderer);
+
+        // RenderPass
         const renderPass = new RenderPass(this.scene, this.camera);
         this.composer.addPass(renderPass);
 
+        // Ambient occlusion
+        const gtao = new GTAOPass(this.scene, this.camera, innerWidth, innerHeight);
+
+        // you can debug the raw AO or denoised result:
+        gtao.updateGtaoMaterial(
+            {
+                radius: 0.25,
+                screenSpaceRadius: true,
+                distanceExponent: 1,
+                thickness: 1,
+                distanceFallOff: 1,
+                scale: 1,
+                samples: 16
+            }
+        )
+        gtao.blendIntensity = 1;
+        gtao.output = GTAOPass.OUTPUT.Default;  // beauty + AO
+        
+        // gtao.output = GTAOPass.OUTPUT.AO;    // AO only
+        // gtao.output = GTAOPass.OUTPUT.Denoise; // AO + denoiser
+        this.composer.addPass( gtao );
+
+        // Outline Pass
         this.outlinePass = new OutlinePass(
-            new THREE.Vector2(innerWidth, innerHeight),
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
             this.scene,
             this.camera
         );
-
         this.outlinePass.edgeStrength = 2.85;
         this.outlinePass.edgeGlow = 0;
         this.outlinePass.edgeThickness = 1;
         this.outlinePass.pulsePeriod = 3;
         this.outlinePass.visibleEdgeColor.set("#00aaff");
         this.outlinePass.hiddenEdgeColor.set("#00aaff");
-
-        this.outlinePass.renderToScreen = true;
         this.composer.addPass(this.outlinePass);
 
-        /*const loader = new THREE.TextureLoader();
-            loader.load('https://threejs.org/examples/textures/tri_pattern.jpg', (texture) => {
-                this.outlinePass.usePatternTexture = true;
-                this.outlinePass.patternTexture = texture;
-                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-            })*/
+        const outputPass = new OutputPass();
 
-        this.scene.add(this.camera);
+        this.composer.addPass(outputPass);
 
 
+        // Light (needed for SSAO)
+        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+        const directional = new THREE.DirectionalLight(0xffffff, 1);
+        directional.position.set(5, 10, 7.5);
+        this.scene.add(ambient, directional);
+
+        // Optional pattern texture
+        /*
+        const loader = new THREE.TextureLoader();
+        loader.load('https://threejs.org/examples/textures/tri_pattern.jpg', (texture) => {
+            this.outlinePass.usePatternTexture = true;
+            this.outlinePass.patternTexture = texture;
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        });
+        */
+
+        // Optional controls for debugging
+        // new OrbitControls(this.camera, this.renderer.domElement);
+
+        // Resize handler
+        window.addEventListener("resize", () => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            this.camera.aspect = w / h;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(w, h);
+            this.composer.setSize(w, h);
+        });
     }
     private initializeLighting() {
         // Ambient light for general soft lighting
-        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.2);
         this.scene.add(ambient);
 
         // Directional light for shadows and highlights
-        const directional = new THREE.DirectionalLight(0xffffff, 1);
-        directional.position.set(5, 10, 7);
-        directional.castShadow = true;
-        this.scene.add(directional);
+        //const directional = new THREE.DirectionalLight(0xffffff, 1);
+        //directional.position.set(5, 10, 7);
+        //directional.castShadow = true;
+        //this.scene.add(directional);
 
         // Optional: Hemisphere light for subtle sky/ground effect
-        const hemi = new THREE.HemisphereLight(0xaaaaaa, 0x444444, 0.3);
-        hemi.position.set(0, 20, 0);
-        this.scene.add(hemi);
+        //const hemi = new THREE.HemisphereLight(0xaaaaaa, 0x444444, 0.3);
+        //hemi.position.set(0, 20, 0);
+        //this.scene.add(hemi);
     }
 
     private initializeControls() {
@@ -1428,7 +1478,7 @@ export class Editor3d {
         const meshes = getAllMeshes(group);
 
         for (const m of meshes) {
-            m.material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
+            m.material = new THREE.MeshPhysicalMaterial({ color: 0xffffff, flatShading: false });
             const s = new Solid(m);
             this.addSolid(s, null);
         }
@@ -1437,7 +1487,7 @@ export class Editor3d {
     }
 
     private importMesh(mesh: THREE.Mesh) {
-        mesh.material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
+        mesh.material = new THREE.MeshPhysicalMaterial({ color: 0xffffff, flatShading: false });
         const s = new Solid(mesh);
         this.addSolid(s, null);
         this.updateTree();
@@ -1526,7 +1576,7 @@ export class Editor3d {
                         console.log("Importing STL");
                         const loader = new STLLoader();
                         const geometry = loader.parse(buffer);
-                        const material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
+                        const material = new THREE.MeshPhysicalMaterial({ color: 0xffffff, flatShading: false });
                         const mesh = new THREE.Mesh(geometry, material);
                         this.importMesh(mesh);
                         break;
@@ -1624,7 +1674,7 @@ export class Editor3d {
         )
             return;
 
-        const material = new THREE.MeshPhysicalMaterial({ color: 0xffffff });
+        const material = new THREE.MeshPhysicalMaterial({ color: 0xffffff, flatShading: false });
 
         cubeButton.addEventListener("click", () => {
             // New cube!
@@ -1813,7 +1863,7 @@ export class Editor3d {
     }
     renderScene() {
         //this.stats.begin();
-        this.controls.beforeRender();
+        this.controls.beforeRender(this.clock.getDelta() * 30);
 
         this.composer.render();
         //this.stats.end();

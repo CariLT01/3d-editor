@@ -85,8 +85,8 @@ export class CameraController {
         })
     }
 
-    private keyboardMoveUpdate() {
-        const speed = FORWARD_MOVEMENT_SPEED * this.speedMultiplier;
+    private keyboardMoveUpdate(deltaTime: number) {
+        const speed = FORWARD_MOVEMENT_SPEED * this.speedMultiplier * deltaTime;
 
         // — WS (with pitch) —
         const lookDir = new THREE.Vector3();
@@ -119,10 +119,10 @@ export class CameraController {
             this.camera.position.add(right2d.multiplyScalar(speed));
         }
     }
-    private wheelMovementUpdate() {
+    private wheelMovementUpdate(deltaTime: number) {
 
 
-        const speed = FORWARD_MOVEMENT_SPEED * this.speedMultiplier * WM_FM_RATIO;
+        const speed = FORWARD_MOVEMENT_SPEED * this.speedMultiplier * WM_FM_RATIO * deltaTime;
 
         // — WS (with pitch) —
         const lookDir = new THREE.Vector3();
@@ -139,14 +139,14 @@ export class CameraController {
 
         this.scrollWheelDelta = 0;
     }
-    private mouseRotateUpdate() {
+    private mouseRotateUpdate(deltaTime: number) {
         if (!this.rightMouseButtonPressed) return;
 
         const xh = this.mouseMovementX / innerWidth;
         const yh = this.mouseMovementY / innerHeight;
 
-        this.phi += -xh * ROTATION_SPEED;
-        this.theta = clamp(this.theta + -yh * ROTATION_SPEED, -Math.PI / 2, Math.PI / 2);
+        this.phi += -xh * ROTATION_SPEED * deltaTime;
+        this.theta = clamp(this.theta + -yh * ROTATION_SPEED * deltaTime, -Math.PI / 2, Math.PI / 2);
 
         const qx = new THREE.Quaternion();
         qx.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.phi);
@@ -170,14 +170,14 @@ export class CameraController {
         }
     }
 
-    private mousePanUpdate() {
+    private mousePanUpdate(deltaTime: number) {
         if (!this.middleMouseButtonPressed) {
             document.body.style.cursor = "default";
             return;
         }
         document.body.style.cursor = "move";
 
-        const speed = FORWARD_MOVEMENT_SPEED * WM_FM_RATIO * MP_WM_RATIO * this.speedMultiplier;
+        const speed = FORWARD_MOVEMENT_SPEED * WM_FM_RATIO * MP_WM_RATIO * this.speedMultiplier * deltaTime;
 
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward).normalize();
@@ -210,11 +210,11 @@ export class CameraController {
         target.add(offset);
     }
 
-    beforeRender() {
-        this.keyboardMoveUpdate();
-        this.wheelMovementUpdate();
-        this.mousePanUpdate();
-        this.mouseRotateUpdate();
+    beforeRender(deltaTime: number) {
+        this.keyboardMoveUpdate(deltaTime);
+        this.wheelMovementUpdate(deltaTime);
+        this.mousePanUpdate(deltaTime);
+        this.mouseRotateUpdate(deltaTime);
 
         this.mouseMovementX = 0;
         this.mouseMovementY = 0;

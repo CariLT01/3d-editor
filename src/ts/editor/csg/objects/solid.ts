@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SUBTRACTION, INTERSECTION, ADDITION, Brush, Evaluator, CSGOperation } from 'three-bvh-csg';
 import { CSG } from 'three-csg-ts';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 interface ExportedData {
     mesh: any;          // Replace `any` with the actual type returned by toJSON()
     history: ExportedData[];
@@ -269,7 +270,8 @@ export class Solid {
         const resultBrush = new Evaluator().evaluate(brush1, brush2, op);
 
         // 2) build the new Solid without any extra transform
-        const resultGeom = resultBrush.geometry;
+        const resultGeom_ = resultBrush.geometry;
+        const resultGeom = BufferGeometryUtils.mergeVertices(resultGeom_, 1e-5);
         resultGeom.computeVertexNormals();  // optional, but often useful
         const n = new Solid();
         n.fromGeometry(resultGeom, this.getMesh().material as THREE.Material);
