@@ -604,8 +604,8 @@ export class Editor3d {
 
 
         // Light (needed for SSAO)
-        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-        const directional = new THREE.DirectionalLight(0xffffff, 1);
+        const ambient = new THREE.AmbientLight(0xaaaaaa, 0.5);
+        const directional = new THREE.DirectionalLight(0xffffff, 0.5);
         directional.position.set(5, 10, 7.5);
         this.scene.add(ambient, directional);
 
@@ -790,14 +790,14 @@ export class Editor3d {
     }
 
     private initializeHelpers() {
-        const gridHelper = new THREE.GridHelper(100, 200, 0x666666, 0x666666);
+        const gridHelper = new THREE.GridHelper(100, 200, 0x2E2C2C, 0x2E2C2C);
         this.scene.add(gridHelper);
 
         const gridHelperMajorLines = new THREE.GridHelper(
             100,
             200 / 10,
-            0xaaaaaa,
-            0xaaaaaa
+            0x666666,
+            0x666666
         );
         this.scene.add(gridHelperMajorLines);
 
