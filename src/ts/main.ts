@@ -20,7 +20,7 @@ function hideLoadingScreen() {
     }, 1000);
 }
 
-import { Editor3d } from './editor/editor';
+import { Editor3d } from './editor/editorOld';
 const editor = new Editor3d();
 editor.initialize();
 hideLoadingScreen()

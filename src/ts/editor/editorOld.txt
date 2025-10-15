@@ -21,8 +21,6 @@ import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 
 import { EntityComponentSystemScene } from "./EntityComponentSystem/EntityComponentSystemScene";
 import { ComponentTypeMap } from "./EntityComponentSystem/EntityComponentSystemComponents";
-import { Entity } from "./EntityComponentSystem/EntityComponentSystemEntity";
-import { PropertyTabManager } from "./PropertyTabManager";
 
 function degToRad(deg: number) {
     return (deg * Math.PI) / 180;
@@ -95,7 +93,7 @@ export class Editor3d {
     // Other
     stats!: Stats;
     currentSolidFound: Solid | null = null;
-    currentEntitiesSelected: Entity[] = [];
+    currentSolidsSelected: Solid[] = [];
     shiftHeldDown: boolean = false;
     altHeldDown: boolean = false;
     solids: { [key: string]: Solid } = {};
@@ -135,14 +133,12 @@ export class Editor3d {
     clock: THREE.Clock = new THREE.Clock();
 
     ECSScene: EntityComponentSystemScene<ComponentTypeMap> = new EntityComponentSystemScene();
-    PropertyTabManager!: PropertyTabManager;
 
     constructor() {
         console.log("Creating new instance of Editor3D");
     }
     initialize() {
         this.initializeBasics();
-        this.initializePropertyTabManager();
         this.initializeLighting();
         this.initializeControls();
         this.initializeWindowEvents();
@@ -159,27 +155,97 @@ export class Editor3d {
         this.initializeImport3DbuttonEvent();
         this.initializeImportSceneEvent();
         this.updateOutlinePass();
-
     }
 
-    private initializePropertyTabManager() {
+
+
+    private updatePropertiesTab() {
         const propertiesTab: HTMLDivElement | null = document.querySelector("#properties");
         if (!propertiesTab) {
             throw new Error("Properties tab not found");
         }
 
-        this.PropertyTabManager = new PropertyTabManager(propertiesTab);
-    }
-
-
-    private updatePropertiesTab() {
-
-        if (this.currentEntitiesSelected.length <= 0 || this.currentEntitiesSelected.length > 1) {
-            this.PropertyTabManager.clearPropertyTab();
+        if (this.currentSolidsSelected.length !== 1) {
+            propertiesTab.innerHTML = '';
+            if (!propertiesTab.parentElement) return;
+            //propertiesTab.parentElement.style.display = "none";
             return;
-        }; 
+        } else {
+            if (!propertiesTab.parentElement) return;
+            //propertiesTab.parentElement.style.display = "block";
+        }
 
-        this.PropertyTabManager.updatePropertyTab(this.currentEntitiesSelected[0]);
+        propertiesTab.innerHTML = '';
+
+        const solid = this.currentSolidsSelected[0];
+        solid.updateProperties();
+
+        const properties = solid.properties;
+
+        for (const propertyName in properties) {
+            const propertyValue = properties[propertyName];
+
+            // New entry
+
+            const propertyItemDiv = document.createElement("div");
+            propertyItemDiv.classList.add("property-item");
+            const propertyLabelElement = document.createElement("label");
+
+            propertyLabelElement.innerText = propertyName;
+            propertyItemDiv.appendChild(propertyLabelElement);
+            if (propertyValue.type == "Vector3") {
+                const inputElement = document.createElement("input");
+                inputElement.value = `${propertyValue.values[0]}, ${propertyValue.values[1]}, ${propertyValue.values[2]}`;
+
+
+                propertyItemDiv.appendChild(inputElement);
+
+                console.log("Added new input for: ", propertyName);
+                inputElement.addEventListener("input", () => {
+                    console.log("Input element value changed");
+                    const str = inputElement.value;
+                    const numbers = str.split(',').map(Number);
+
+                    if (numbers.length !== 3) {
+                        console.error("Number of numbers not equals to 3: ", numbers.length);
+                        return;
+                    }
+                    solid.updatePropertyItem(propertyName, numbers);
+
+                })
+
+
+            } else if (propertyValue.type == "Color") {
+                const inputElement = document.createElement("input");
+                inputElement.type = "color";
+                inputElement.value = rgbToHex(propertyValue.values[0], propertyValue.values[1], propertyValue.values[2]);
+
+                propertyItemDiv.appendChild(inputElement);
+
+                inputElement.addEventListener("input", () => {
+                    const rgb = hexToRgb(inputElement.value);
+                    solid.updatePropertyItem(propertyName, rgb);
+                })
+            } else if (propertyValue.type == "Number") {
+                const inputElement = document.createElement("input");
+                inputElement.type = "number";
+                inputElement.value = propertyValue.values[0];
+
+                propertyItemDiv.appendChild(inputElement);
+
+                inputElement.addEventListener("input", () => {
+                    const value = inputElement.valueAsNumber;
+                    console.log("Send:", propertyName, "=", [value]);
+                    solid.updatePropertyItem(propertyName, [value]);
+                });
+            }
+
+            else {
+                console.warn("Unrecognized property type: ", propertyValue.type);
+            }
+
+            propertiesTab.appendChild(propertyItemDiv);
+        }
     }
 
     private renderTree(
@@ -337,10 +403,36 @@ export class Editor3d {
             return;
         }
         tree.innerHTML = "";
-        this.ECSScene.renderTree(tree as HTMLDivElement);
+        const html = this.renderTree(this.solidsTree, this.buildHighlgihtedList());
+        tree.appendChild(html);
     }
-    private deleteEntity(entity: Entity) {
-        this.ECSScene.removeEntity(entity);
+    private deleteSolid(solid: Solid) {
+        const index = this.solids[solid.getMesh().uuid];
+        if (index === null) {
+            throw new Error("Solid does not exist");
+        }
+
+        const tree = this.solidsTree[solid.getMesh().uuid];
+        if (tree == null) {
+            throw new Error("Solid not found in tree");
+        }
+        const solidID = solid.getMesh().uuid;
+
+        // Recursive delete
+
+        delete this.solidsTree[solid.getMesh().uuid];
+        for (const id in this.solidsTree) {
+            const value = this.solidsTree[id];
+            if (value.parentId == solidID) {
+                const childSolid: Solid = this.solids[id];
+                if (childSolid !== null) {
+                    this.deleteSolid(childSolid);
+                }
+            }
+        }
+        delete this.solids[solid.getMesh().uuid];
+        this.scene.remove(solid.getGroup());
+
         this.updateTree();
     }
     private getParentOfSolid(object: Solid): Solid | null {
@@ -348,8 +440,25 @@ export class Editor3d {
         if (p == null) return p;
         return this.solids[p];
     }
-    private addEntity(entity: Entity) {
-        this.ECSScene.addEntity(entity);
+    private addSolid(object: Solid, parent: Solid | null) {
+        this.solids[object.getMesh().uuid] = object;
+        if (!parent) {
+            this.solidsTree[object.getMesh().uuid] = {
+                parentId: null,
+                id: object.getMesh().uuid,
+                name: object.name,
+                type: "solid",
+            };
+        } else {
+            this.solidsTree[object.getMesh().uuid] = {
+                parentId: parent.getMesh().uuid,
+                id: object.getMesh().uuid,
+                name: object.name,
+                type: "solid",
+            };
+        }
+        this.scene.add(object.getGroup());
+
         this.updateTree();
     }
 
@@ -965,9 +1074,6 @@ export class Editor3d {
                 if (this.arrowHelperGroup) {
                     // always pull world transforms directly from each mesh
                     for (const solid of this.currentSolidsSelected) {
-
-                        
-
                         const mesh = solid.getMesh();
 
                         // 1) read out world position / quaternion / scale
