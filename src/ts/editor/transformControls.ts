@@ -12,7 +12,7 @@ type AxisName =
 
 const AXIS_AND_MOUSE_COORDS = {};
 
-export class CustomTransformControls {
+export class CustomTransformControlsOld {
     axisMeshes!: Record<AxisName, THREE.Mesh>;
     finishedLoading: boolean = false;
     selectedObject: THREE.Mesh | null = null;

@@ -1,3 +1,5 @@
+import { Editor } from "./editor/Editor";
+
 function hideLoadingScreen() {
     const loadingScreen: HTMLDivElement = document.querySelector("#loading-screen") as HTMLDivElement;
     if (!loadingScreen) {
@@ -20,14 +22,8 @@ function hideLoadingScreen() {
     }, 1000);
 }
 
-import { Editor3d } from './editor/editorOld';
-const editor = new Editor3d();
-editor.initialize();
+const editor = new Editor();
+
 hideLoadingScreen()
 
-function renderLoop() {
-    editor.renderScene();
-    requestAnimationFrame(renderLoop);
-}
-
-renderLoop();
+editor.run();

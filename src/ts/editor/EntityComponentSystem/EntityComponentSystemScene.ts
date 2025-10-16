@@ -21,10 +21,14 @@ type TreeRenderNode = {
 export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, any>> {
     private storages = new Map<Function, Map<string, any>>;
     private entityIdMap = new Map<string, Entity>;
-    private rootId: string;
-    private systemsMap =  new Map<new () => any, any>;
+    private rootId!: string;
+    private systemsMap = new Map<new () => any, any>;
 
     constructor() {
+
+    }
+
+    createRoot() {
         const rootEntity = this.createEntity();
         rootEntity.name = "Scene";
         rootEntity.addComponent(RootNodeComponent, new RootNodeComponent());
@@ -43,6 +47,12 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
     addEntity(entity: Entity) {
         this.entityIdMap.set(entity.id, entity);
         for (const [constructor_, component] of entity.components.entries()) {
+
+            if (constructor_ == null) {
+                console.error("Constructor  is: ", constructor_, " component is: ", component);
+                throw Error("Constructor is null / undefined");
+            }
+
             if (!this.storages.get(constructor_)) {
                 this.storages.set(constructor_, new Map());
             }
@@ -50,7 +60,12 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
             if (componentMap == undefined) continue;
             componentMap.set(entity.id, component);
 
-            this.systemsMap.get(constructor_).addEntity(entity);
+            const constructor = this.systemsMap.get(constructor_);
+            if (!constructor) {
+                console.warn("Missing system: ", constructor_);
+                continue;
+            }
+            constructor.addEntity(entity);
         }
 
         
