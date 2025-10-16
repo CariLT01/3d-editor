@@ -20,9 +20,10 @@ import { inflateSync, deflateSync } from "fflate";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 
 import { EntityComponentSystemScene } from "./EntityComponentSystem/EntityComponentSystemScene";
-import { ComponentTypeMap } from "./EntityComponentSystem/EntityComponentSystemComponents";
+import { ComponentTypeMap, SolidGeometryComponent } from "./EntityComponentSystem/EntityComponentSystemComponents";
 import { Entity } from "./EntityComponentSystem/EntityComponentSystemEntity";
 import { PropertyTabManager } from "./PropertyTabManager";
+import { SolidGeometrySystem } from "./EntityComponentSystem/Systems/SolidGeometrySystem";
 
 function degToRad(deg: number) {
     return (deg * Math.PI) / 180;
@@ -136,6 +137,7 @@ export class Editor3d {
 
     ECSScene: EntityComponentSystemScene<ComponentTypeMap> = new EntityComponentSystemScene();
     PropertyTabManager!: PropertyTabManager;
+    SolidGeometrySystem!: SolidGeometrySystem;
 
     constructor() {
         console.log("Creating new instance of Editor3D");
@@ -160,6 +162,8 @@ export class Editor3d {
         this.initializeImportSceneEvent();
         this.updateOutlinePass();
 
+        this.initializeComponents();
+
     }
 
     private initializePropertyTabManager() {
@@ -171,6 +175,13 @@ export class Editor3d {
         this.PropertyTabManager = new PropertyTabManager(propertiesTab);
     }
 
+    private initializeComponents() {
+
+        this.SolidGeometrySystem = new SolidGeometrySystem(this.scene);        
+        this.ECSScene.addSystem(SolidGeometryComponent, this.SolidGeometrySystem);
+
+    }
+
 
     private updatePropertiesTab() {
 
@@ -180,154 +191,6 @@ export class Editor3d {
         }; 
 
         this.PropertyTabManager.updatePropertyTab(this.currentEntitiesSelected[0]);
-    }
-
-    private renderTree(
-        solidsTree: Record<string, FlatNode>,
-        highlighted: { [key: string]: boolean }
-    ): HTMLElement {
-        // 1) Clone into TreeNodes with empty children
-        const map = new Map<string, TreeNode>();
-        for (const key in solidsTree) {
-            const { id, parentId, name, type } = solidsTree[key];
-            map.set(id, { id, parentId, name, type, children: [] });
-        }
-
-        // 2) Link children
-        const roots: TreeNode[] = [];
-        for (const node of map.values()) {
-            if (node.parentId === null) {
-                roots.push(node);
-            } else {
-                map.get(node.parentId)?.children.push(node);
-            }
-        }
-
-        // 3) Recursively build UL/LI structure
-        let buildList = (nodes: TreeNode[]) => {
-            const ul = document.createElement("ul");
-            for (const node of nodes) {
-                const li = document.createElement("li");
-                const btn = document.createElement("button");
-                if (highlighted[node.id]) btn.classList.add("tree-highlighted");
-                btn.classList.add("tree-item");
-
-                // See if solid is hidden
-                const solid = this.solids[node.id];
-                if (solid) {
-                    if (this.scene.getObjectById(solid.getMesh().id) == null) {
-                        btn.classList.add("tree-item-hidden")
-                    }
-                }
-
-                btn.textContent = node.name;
-                btn.dataset.nodeId = node.id;
-                li.appendChild(btn);
-                if (node.children.length) {
-                    li.appendChild(buildList(node.children));
-                }
-                btn.addEventListener("click", () => {
-                    const solid = this.solids[node.id];
-                    if (solid == null) {
-                        if (node.type != "group") {
-                            console.error("No solid, but not a group");
-                            return;
-                        }
-
-                        // Check children
-                        let numChildren = 0;
-                        for (const memberId in this.solidsTree) {
-                            const member = this.solidsTree[memberId];
-                            if (member.parentId == node.id) {
-                                console.log("Found: ", member.id);
-                                numChildren++;
-                                break;
-                            }
-                        }
-
-                        if (numChildren == 0) {
-                            delete this.solidsTree[node.id];
-                            this.updateTree();
-                            console.log("Deleted empty group");
-                        } else {
-                            console.log("Found children");
-
-                            const selectAllDescendants = (toCheckNode: FlatNode) => {
-                                for (const memberId in this.solidsTree) {
-                                    const member = this.solidsTree[memberId];
-                                    if (member.parentId == toCheckNode.id) {
-                                        console.log("Found: ", member.id);
-
-                                        const s = this.solids[member.id];
-                                        if (s == null) {
-                                            if (member.type == "group") {
-                                                selectAllDescendants(member);
-                                                continue;
-                                            } else {
-                                                continue;
-                                            }
-                                        }
-                                        if (this.currentSolidsSelected.indexOf(s) === -1) {
-                                            this.currentSolidsSelected.push(s);
-                                        } else {
-                                            this.currentSolidsSelected.splice(
-                                                this.currentSolidsSelected.indexOf(s),
-                                                1
-                                            );
-                                        }
-                                        this.isMoving = true;
-                                        this.updateTree();
-                                        this.updateOutlinePass();
-                                        this.determineArrowHelperState();
-                                        if (this.currentSolidsSelected.length == 0) {
-                                            this.isMoving = false;
-                                        }
-                                    }
-                                }
-                            };
-
-                            selectAllDescendants(node);
-                        }
-
-                        return;
-                    }
-                    if (this.currentSolidsSelected.indexOf(solid) === -1) {
-                        this.currentSolidsSelected.push(solid);
-                        this.updateTree();
-                        this.updateOutlinePass();
-                        this.determineArrowHelperState();
-                        this.isMoving = true;
-                    } else {
-                        this.currentSolidsSelected.splice(
-                            this.currentSolidsSelected.indexOf(solid),
-                            1
-                        );
-                        this.updateTree();
-                        this.updateOutlinePass();
-                        this.determineArrowHelperState();
-                        if (this.currentSolidsSelected.length == 0) {
-                            this.isMoving = false;
-                        }
-                    }
-                });
-
-                ul.appendChild(li);
-            }
-            return ul;
-        };
-
-        // wrap roots in a container (you can return the UL directly if you prefer)
-        const container = document.createElement("div");
-        container.appendChild(buildList(roots));
-        return container;
-    }
-
-    private buildHighlgihtedList() {
-        const a: { [key: string]: boolean } = {};
-        for (const solid of this.currentSolidsSelected) {
-            a[solid.getMesh().uuid] = true;
-        }
-        return a;
     }
 
     private updateTree() {
@@ -343,61 +206,11 @@ export class Editor3d {
         this.ECSScene.removeEntity(entity);
         this.updateTree();
     }
-    private getParentOfSolid(object: Solid): Solid | null {
-        const p = this.solidsTree[object.getMesh().uuid].parentId;
-        if (p == null) return p;
-        return this.solids[p];
-    }
     private addEntity(entity: Entity) {
         this.ECSScene.addEntity(entity);
         this.updateTree();
     }
 
-    private addToUndoStack() {
-        const cloned: { [key: string]: Solid } = {};
-        for (const solidID in this.solids) {
-            const solid = this.solids[solidID];
-            cloned[solid.getMesh().uuid] = solid.fullClone();
-        }
-        console.log("Added to undo stack ", cloned);
-        this.undoStack.push(cloned);
-        console.log(this.undoStack);
-    }
-
-    private undoAction() {
-        console.log("Undo!");
-        if (this.undoStack.length === 0) {
-            console.warn("Nothing to undo!");
-            return;
-        }
-
-        // Save current state for redo BEFORE removing
-        const cloned: { [key: string]: Solid } = {};
-        for (const solidID in this.solids) {
-            const solid = this.solids[solidID];
-            cloned[solid.getMesh().uuid] = solid.fullClone();
-        }
-        this.redoStack.push(cloned);
-
-        // Remove current meshes
-        for (const soliID in this.solids) {
-            const solid = this.solids[soliID];
-            this.scene.remove(solid.getMesh());
-        }
-
-        this.currentSolidsSelected = [];
-        this.updateOutlinePass();
-
-        // Restore from undo
-        this.solids = this.undoStack.pop()!;
-        console.log("Solids: ", this.solids);
-        console.log("Length: ", this.solids.length);
-        for (const solidID in this.solids) {
-            const solid = this.solids[solidID];
-            console.log("Undid: ", solid);
-            this.scene.add(solid.getMesh());
-        }
-    }
 
     private arrowHelperAttach(solid: Solid) {
         this.arrowHelper.attach(solid.getGroup());
@@ -411,7 +224,7 @@ export class Editor3d {
         if (this.arrowHelperGroup) {
             const groupMatrixWorld = this.arrowHelperGroup.matrixWorld;
 
-            for (const selected of this.currentSolidsSelected) {
+            /*for (const selected of this.currentSolidsSelected) {
                 const mesh = selected.getMesh();
 
                 if (this.arrowHelperGroup.children.includes(mesh)) {
@@ -426,7 +239,7 @@ export class Editor3d {
 
                     selected.updateProperties();
                 }
-            }
+            }*/
 
             if (this.scene.getObjectById(this.arrowHelperGroup.id)) {
                 this.scene.remove(this.arrowHelperGroup);
@@ -641,14 +454,14 @@ export class Editor3d {
         if (!resetPivotButton) return;
 
         resetPivotButton.addEventListener("click", () => {
-            if (this.currentSolidsSelected.length !== 1) return;
-            this.resetPivot(this.currentSolidsSelected[0].getMesh());
+            //if (this.currentSolidsSelected.length !== 1) return;
+            //this.resetPivot(this.currentSolidsSelected[0].getMesh());
         })
 
         const hideSolidsButton: HTMLButtonElement | null = document.querySelector("#hideSolids");
         if (!hideSolidsButton) return;
         hideSolidsButton.addEventListener("click", () => {
-            for (const solid of this.currentSolidsSelected) {
+            /*for (const solid of this.currentSolidsSelected) {
                 if (this.scene.getObjectById(solid.getMesh().id) == null) {
                     this.scene.add(solid.getMesh());
                     console.log("Add mesh");
@@ -661,7 +474,7 @@ export class Editor3d {
             this.currentSolidsSelected = [];
             this.updateOutlinePass();
             this.determineArrowHelperState();
-            this.updateTree();
+            this.updateTree();*/
         })
 
         const fastCSGButton: HTMLButtonElement | null = document.querySelector("#fastCSG");
@@ -739,8 +552,8 @@ export class Editor3d {
         });*/
 
         this.arrowHelper.addEventListener("objectChange", () => {
-            if (this.currentSolidsSelected.length !== 1) return;
-            this.updatePropertiesTab();
+            //if (this.currentSolidsSelected.length !== 1) return;
+            //this.updatePropertiesTab();
 
 
         })
@@ -752,7 +565,7 @@ export class Editor3d {
     }
 
     private updateOutlinePass() {
-        const a: THREE.Mesh[] = [];
+        /*const a: THREE.Mesh[] = [];
         for (const solid of this.currentSolidsSelected) {
             a.push(solid.getMesh());
         }
@@ -770,7 +583,7 @@ export class Editor3d {
         const y: HTMLButtonElement | null = document.querySelector("#resetPivot");
         if (!y) return;
         if (a.length === 1) { y.style.display = "flex"; }
-        else { y.style.display = "none"; }
+        else { y.style.display = "none"; }*/
     }
     private determineArrowHelperState() {
         const n = this.currentSolidsSelected.length;

@@ -22,6 +22,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
     private storages = new Map<Function, Map<string, any>>;
     private entityIdMap = new Map<string, Entity>;
     private rootId: string;
+    private systemsMap =  new Map<new () => any, any>;
 
     constructor() {
         const rootEntity = this.createEntity();
@@ -48,7 +49,15 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
             const componentMap = this.storages.get(constructor_);
             if (componentMap == undefined) continue;
             componentMap.set(entity.id, component);
+
+            this.systemsMap.get(constructor_).addEntity(entity);
         }
+
+        
+    }
+
+    addSystem(componentType: new () => any, system: any) {
+        this.systemsMap.set(componentType, system);
     }
 
     private removeEntityInternal(entity: Entity) {
@@ -64,6 +73,9 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
             if (componentMap == undefined) continue;
 
             componentMap.delete(entity.id);
+
+            this.systemsMap.get(constructor_).removeEntity(entity);
+
         }
         // Delete referenced in children
 
@@ -87,6 +99,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
     removeEntity(root: Entity) {
         const stack: Entity[] = [root];
         const toDelete: Entity[] = [];
+
 
         // Collect all entities in the subtree
         while (stack.length > 0) {
