@@ -1,4 +1,4 @@
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Object3D, SphereGeometry } from "three";
+import { Box3, BoxGeometry, Group, Mesh, MeshBasicMaterial, Object3D, SphereGeometry, Vector3 } from "three";
 import { EditorRenderer } from "./Core/Renderer";
 import { GLTF, GLTFLoader } from "three/examples/jsm/Addons.js";
 
@@ -32,6 +32,7 @@ export class CustomTransformControls {
 
     private groupInScene: Group | undefined = undefined;
     private attachedGroup: Group | undefined = undefined;
+    private groupSize: Vector3 = new Vector3(0, 0, 0);
 
     constructor(renderer: EditorRenderer) {
         this.renderer = renderer;
@@ -39,10 +40,19 @@ export class CustomTransformControls {
         this._initialize();
     }
 
-    private _initialize() {
+    private _clearGroup(group: Group) {
+        while (group.children.length > 0) {
+            group.remove(group.children[0]);
+        }
+    }
+    
+    private _buildMeshes() {
 
-        this._loadArrowModel();
-        this._createScaleModel();
+        if (this.translateGroup && this.rotateGroup && this.scaleGroup) {
+            this._clearGroup(this.translateGroup);
+            this._clearGroup(this.rotateGroup);
+            this._clearGroup(this.scaleGroup);
+        }
 
         // Group for translation arrows
         this.translateGroup = new Group();
@@ -145,8 +155,22 @@ export class CustomTransformControls {
         PositiveZScale,
         NegativeZScale
         );
+    }
+
+    private _initialize() {
+
+        this._loadArrowModel();
+        this._createScaleModel();
 
 
+
+
+    }
+
+    private _computeSize() {
+        if (!this.attachedGroup) return;
+        const box = new Box3().setFromObject(this.attachedGroup);
+        box.getSize(this.groupSize);
     }
 
     private _loadArrowModel() {
@@ -204,6 +228,8 @@ export class CustomTransformControls {
     detach() {
         this.attachedGroup = undefined;
     }
+
+
 
 
 

@@ -23,6 +23,19 @@ export class RootNodeComponent {
 
 }
 
+export class MeshMaterialComponent {
+    color!: THREE.Color;
+}
+export class MeshPhysicalMaterialComponent extends MeshMaterialComponent {
+    albedoTexture!: THREE.Texture;
+    normalMapTexture!: THREE.Texture;
+    // etc.
+}
+
+export class MeshPhongMaterialComponent extends MeshMaterialComponent {
+    
+}
+
 export type ComponentTypeMap = {
     TransformComponent: TransformComponent,
     SolidGeometryComponent: SolidGeometryComponent,

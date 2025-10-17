@@ -1,13 +1,25 @@
+import { EventBus, EventType } from "../EventBus";
 
-class PrimitivesTopBar {
-    constructor() {
+export class PrimitivesTopBar {
 
+    private eventBus: EventBus;
+
+    constructor(eventBus: EventBus) {
+        this.eventBus = eventBus;
+
+        this.initialize();
     }
-    getCube() {
-        return document.querySelector("#cube") as HTMLButtonElement;
+    private initialize() {
+        const cube = document.querySelector("#cube") as HTMLButtonElement;
+        const sphere = document.querySelector("#sphere") as HTMLButtonElement;
+
+        cube.addEventListener("click", () => {
+            this.eventBus.postEvent(EventType.UI_PRIMITIVES_CREATE_CUBE_CLICKED);
+        });
+
+        sphere.addEventListener("click", () => {
+            this.eventBus.postEvent(EventType.UI_PRIMITIVES_CREATE_SPHERE_CLICKED);
+        });
     }
-    getSphere() {
-        return document.querySelector("#sphere") as HTMLButtonElement;
-    }
-    
+
 }

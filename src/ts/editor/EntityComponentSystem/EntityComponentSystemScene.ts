@@ -38,6 +38,14 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
         this.addEntity(rootEntity);
     }
 
+    getRootId() {
+        return this.rootId;
+    }
+
+    getRoot() {
+        return this.entityIdMap.get(this.rootId) as Entity;
+    }
+
     createEntity() {
         return new Entity(
             generateRandomID()
@@ -136,6 +144,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
         const newListElement = document.createElement("li");
 
         newListElement.innerText = entity.name.length > 0 ? entity.name : entity.id;
+        newListElement.classList.add("tree-item");
 
         return newListElement;
     }
@@ -162,10 +171,13 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
                 parentUl: sceneUl
             }
         );
+        
+        console.log(stack);
+        console.log(stack[0]);
 
 
         while (stack.length > 0) {
-
+            console.log("Length of stack: ", stack.length);
             const node: TreeRenderNode = stack.pop() as TreeRenderNode;
 
             // Create new LI and UL for children
@@ -173,6 +185,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
             const nodeUl = document.createElement("ul");
             
 
+            console.log("Entity has ", node.entity.children.length, " children")
             for (const child of node.entity.children) {
                 const childEntity = this.entityIdMap.get(child);
                 if (childEntity) {
@@ -183,6 +196,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
                     
 
                     // Append to stack
+                    console.log("Push child entity");
                     stack.push(
                         {
                             entity: childEntity,
@@ -190,6 +204,8 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
                             parentUl: nodeUl
                         }
                     );
+                } else {
+                    console.error("Child not found");
                 }
             }
 

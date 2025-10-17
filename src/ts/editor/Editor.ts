@@ -1,10 +1,13 @@
-import { BoxGeometry, GridHelper, Mesh, MeshBasicMaterial } from "three";
+import { BoxGeometry, BufferGeometry, GridHelper, Mesh, MeshBasicMaterial, SphereGeometry } from "three";
 import { CameraController } from "./CameraController";
 import { EditorRenderer } from "./Core/Renderer";
 import { EntityComponentSystemScene } from "./EntityComponentSystem/EntityComponentSystemScene";
 import { ComponentTypeMap, SolidGeometryComponent } from "./EntityComponentSystem/EntityComponentSystemComponents";
 import { SolidGeometrySystem } from "./EntityComponentSystem/Systems/SolidGeometrySystem";
 import { CustomTransformControls } from "./CustomTransformControls";
+import { EventBus, EventType } from "./EventBus";
+import { createSolid } from "./ShapeFactory";
+import { PrimitivesTopBar } from "./UserInterface/PrimitivesTopBar";
 
 export class Editor {
 
@@ -16,15 +19,21 @@ export class Editor {
     // Systems
 
     solidGeometrySystem!: SolidGeometrySystem;
+    eventBus: EventBus;
+
+    // UI
+    primitivesTopBar!: PrimitivesTopBar;
 
     constructor() {
 
         this.run = this.run.bind(this);
 
+        this.eventBus = new EventBus();
         this.renderer = new EditorRenderer();
         this.cameraController = new CameraController(this.renderer.getCamera());
         this.tree = new EntityComponentSystemScene();
         this.transformControls = new CustomTransformControls(this.renderer);
+        this.primitivesTopBar = new PrimitivesTopBar(this.eventBus);
 
         
 
@@ -38,6 +47,7 @@ export class Editor {
 
 
         this._initializeSystems();
+        this._initializeUserInterface();
     }
 
     private _initializeSystems() {
@@ -52,6 +62,28 @@ export class Editor {
 
         this.transformControls.setMode("translate");
         
+    }
+
+    private _initializeUserInterface() {
+        this.eventBus.subscribeEvent(EventType.UI_PRIMITIVES_CREATE_CUBE_CLICKED, () => {
+            // Create cube solid
+            const geom = new BoxGeometry(1, 1, 1);
+            const entity = createSolid(geom, this.tree);
+            this.tree.addEntity(entity);
+            entity.setParent(this.tree.getRoot());
+            
+            this._updateTree();
+        });
+
+        this.eventBus.subscribeEvent(EventType.UI_PRIMITIVES_CREATE_SPHERE_CLICKED, () => {
+            // Create sphere solid
+            const sphere = new SphereGeometry(1);
+            const entity = createSolid(sphere, this.tree);
+            this.tree.addEntity(entity);
+            entity.setParent(this.tree.getRoot());
+            
+            this._updateTree();
+        });
     }
     
     

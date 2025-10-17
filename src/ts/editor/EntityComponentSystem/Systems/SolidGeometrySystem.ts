@@ -16,18 +16,46 @@ export class SolidGeometrySystem {
 
     
 
+    trackNewMesh(entity: Entity) {
+        if (entity.components.get(SolidGeometryComponent) == undefined) {
+            throw new Error("Attempt to track new mesh where entity has no solid geometry component");
+        }
+        const comp = entity.components.get(SolidGeometryComponent) as SolidGeometryComponent;
+
+        // Add it to the scene
+
+        this.scene.add(comp.mesh);
+
+        this.trackedMeshes.set(entity, comp.mesh);
+    }
+
+    untrackMesh(entity: Entity) {
+        if (entity.components.get(SolidGeometryComponent) == undefined) {
+            throw new Error("Attempt to track new mesh where entity has no solid geometry component");
+        }
+
+        const comp = entity.components.get(SolidGeometryComponent) as SolidGeometryComponent;
+        
+        // Remove it from the scene
+
+        this.scene.remove(comp.mesh);
+
+        this.trackedMeshes.delete(entity);
+    }
+
     addEntity(entity: Entity) {
 
         if (entity.components.get(SolidGeometryComponent) == undefined) {
             throw Error("Attempt to give SolidGeometrySystem an entity without SolidGeometryComponent");
         }
 
+        console.log("Tracking new entity!");
+
         this.trackedEntities.push(entity);
 
         // Track mesh
 
-        const component: SolidGeometryComponent = entity.components.get(SolidGeometryComponent);
-        this.trackedMeshes.set(entity, component.mesh);
+        this.trackNewMesh(entity);
     }
 
     removeEntity(entity: Entity) {
@@ -36,7 +64,7 @@ export class SolidGeometrySystem {
         this.trackedEntities.splice(index, 1); 
         // Untrack mesh
 
-        this.trackedMeshes.delete(entity);
+        this.untrackMesh(entity);
     }
 
     // Callback for when component changed

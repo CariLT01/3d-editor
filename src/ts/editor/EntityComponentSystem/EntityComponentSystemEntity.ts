@@ -1,7 +1,7 @@
 
 export class Entity {
     id: string;
-    parent?: string;
+    private parent?: string;
     children: string[] = [];
     components = new Map<new () => any, any>;
     name: string = "Entity";
@@ -25,5 +25,10 @@ export class Entity {
             throw new Error("Failed to remove child, index not found");
         }
         this.children.splice(index, 1);
+    }
+
+    setParent(parentEntity: Entity) {
+        this.parent = parentEntity.id;
+        parentEntity.children.push(this.id);
     }
 }
