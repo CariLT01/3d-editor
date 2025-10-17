@@ -29,10 +29,10 @@ export class Editor {
         this.run = this.run.bind(this);
 
         this.eventBus = new EventBus();
-        this.renderer = new EditorRenderer();
+        this.renderer = new EditorRenderer(this.eventBus);
         this.cameraController = new CameraController(this.renderer.getCamera());
-        this.tree = new EntityComponentSystemScene();
-        this.transformControls = new CustomTransformControls(this.renderer);
+        this.tree = new EntityComponentSystemScene(this.eventBus);
+        this.transformControls = new CustomTransformControls(this.eventBus);
         this.primitivesTopBar = new PrimitivesTopBar(this.eventBus);
 
         

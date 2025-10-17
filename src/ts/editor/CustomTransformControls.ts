@@ -1,6 +1,7 @@
 import { Box3, BoxGeometry, Group, Mesh, MeshBasicMaterial, Object3D, SphereGeometry, Vector3 } from "three";
 import { EditorRenderer } from "./Core/Renderer";
 import { GLTF, GLTFLoader } from "three/examples/jsm/Addons.js";
+import { EventBus, EventType } from "./EventBus";
 
 function loadGLB(url: string) {
     const loader = new GLTFLoader();
@@ -22,7 +23,7 @@ function isMesh(object: Object3D): object is Mesh {
 const TRANSFORM_CONTROLS_SPACING: number = 0.05;
 
 export class CustomTransformControls {
-    private renderer: EditorRenderer;
+    private eventBus: EventBus;
     private translateGroup!: Group;
     private scaleGroup!: Group;
     private rotateGroup!: Group;
@@ -34,9 +35,8 @@ export class CustomTransformControls {
     private attachedGroup: Group | undefined = undefined;
     private groupSize: Vector3 = new Vector3(0, 0, 0);
 
-    constructor(renderer: EditorRenderer) {
-        this.renderer = renderer;
-
+    constructor(eventBus: EventBus) {
+        this.eventBus = eventBus;
         this._initialize();
     }
 
@@ -148,23 +148,43 @@ export class CustomTransformControls {
 
         // Add all arrows to the group
         this.scaleGroup.add(
-        PositiveXScale,
-        NegativeXScale,
-        PositiveYScale,
-        NegativeYScale,
-        PositiveZScale,
-        NegativeZScale
+            PositiveXScale,
+            NegativeXScale,
+            PositiveYScale,
+            NegativeYScale,
+            PositiveZScale,
+            NegativeZScale
         );
+
+        // Assume we add to the scene
+        //this.eventBus.postEvent(EventType.RENDERER_SCENE_ADD, this.translateGroup);
+        //this.eventBus.postEvent(EventType.RENDERER_SCENE_ADD, this.scaleGroup);
+        //this.eventBus.postEvent(EventType.RENDERER_SCENE_ADD, this.rotateGroup);
     }
 
     private _initialize() {
 
         this._loadArrowModel();
         this._createScaleModel();
+        this._computeSize();
+        this._buildMeshes();
 
 
 
+    }
 
+    private _clearMeshes() {
+        if (this.translateGroup && this.rotateGroup && this.scaleGroup) {
+            this._clearGroup(this.translateGroup);
+            this._clearGroup(this.rotateGroup);
+            this._clearGroup(this.scaleGroup);
+        }
+    }
+
+    private _rebuild() {
+        if (!this.attachedGroup) return;
+        this._computeSize();
+        this._buildMeshes();
     }
 
     private _computeSize() {
@@ -203,18 +223,21 @@ export class CustomTransformControls {
 
     setMode(mode: "translate" | "rotate" | "scale") {
         if (this.groupInScene) {
-            this.renderer.getScene().remove(this.groupInScene);
+            this.eventBus.postEvent(EventType.RENDERER_SCENE_REMOVE, this.translateGroup);
+            this.eventBus.postEvent(EventType.RENDERER_SCENE_REMOVE, this.rotateGroup);
+            this.eventBus.postEvent(EventType.RENDERER_SCENE_REMOVE, this.scaleGroup);
         }
+        if (!this.attachedGroup) return;
 
         switch (mode) {
             case "translate":
-                this.renderer.getScene().add(this.translateGroup);
+                this.eventBus.postEvent(EventType.RENDERER_SCENE_ADD, this.translateGroup);
                 break;
             case "rotate":
-                this.renderer.getScene().add(this.rotateGroup);
+                this.eventBus.postEvent(EventType.RENDERER_SCENE_ADD, this.rotateGroup);
                 break;
             case "scale":
-                this.renderer.getScene().add(this.scaleGroup);
+                this.eventBus.postEvent(EventType.RENDERER_SCENE_ADD, this.scaleGroup);
                 break;
             default:
                 throw new Error("Unknown mode: " + mode);
@@ -222,11 +245,18 @@ export class CustomTransformControls {
         
     }
 
+    update() {
+
+    }
+
     attachGroup(group: Group) {
+        
         this.attachedGroup = group;
+        this._rebuild();
     }
     detach() {
         this.attachedGroup = undefined;
+        this._clearMeshes();
     }
 
 

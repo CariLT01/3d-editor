@@ -23,6 +23,10 @@ export class RootNodeComponent {
 
 }
 
+export class GroupedSelectionAttribute {
+
+}
+
 export class MeshMaterialComponent {
     color!: THREE.Color;
 }
@@ -33,7 +37,7 @@ export class MeshPhysicalMaterialComponent extends MeshMaterialComponent {
 }
 
 export class MeshPhongMaterialComponent extends MeshMaterialComponent {
-    
+
 }
 
 export type ComponentTypeMap = {
@@ -41,5 +45,6 @@ export type ComponentTypeMap = {
     SolidGeometryComponent: SolidGeometryComponent,
     SolidGeometryNegateComponent: SolidGeometryNegateComponent,
     SolidGeometryIntersectionComponent: SolidGeometryIntersectionComponent,
-    RootNodeComponent: RootNodeComponent
+    RootNodeComponent: RootNodeComponent,
+    GroupedSelectionAttribute: GroupedSelectionAttribute
 }

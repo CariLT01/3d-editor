@@ -1,6 +1,7 @@
 import { ComponentTypeMap } from "./EntityComponentSystemComponents";
 import { Entity } from "./EntityComponentSystemEntity";
 import { RootNodeComponent } from "./EntityComponentSystemComponents";
+import { EventBus } from "../EventBus";
 
 function generateRandomID(length: number = 256): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -23,9 +24,10 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
     private entityIdMap = new Map<string, Entity>;
     private rootId!: string;
     private systemsMap = new Map<new () => any, any>;
+    private eventBus: EventBus;
 
-    constructor() {
-
+    constructor(eventBus: EventBus) {
+        this.eventBus = eventBus;
     }
 
     createRoot() {

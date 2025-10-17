@@ -1,4 +1,6 @@
-import { Camera, Clock, PerspectiveCamera, Scene, WebGLRenderer } from "three";
+import { Camera, Clock, Mesh, Object3D, PerspectiveCamera, Scene, Vector2, WebGLRenderer } from "three";
+import { EffectComposer, OutlinePass, RenderPass } from "three/examples/jsm/Addons.js";
+import { EventBus, EventType } from "../EventBus";
 
 
 export class EditorRenderer {
@@ -7,9 +9,14 @@ export class EditorRenderer {
     private camera!: PerspectiveCamera;
     private renderer!: WebGLRenderer;
     private clock!: Clock;
+    private eventBus: EventBus;
 
-    constructor() {
+    private composer!: EffectComposer;
+    private renderPass!: RenderPass;
+    private outlinePass!: OutlinePass;
 
+    constructor(eventBus: EventBus) {
+        this.eventBus = eventBus;
         this._initialize();
     }
 
@@ -24,10 +31,40 @@ export class EditorRenderer {
         this.renderer = new WebGLRenderer({antialias: true});
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
+
+        this.composer = new EffectComposer(this.renderer);
+        this.renderPass = new RenderPass(this.scene, this.camera);
+        this.composer.addPass(this.renderPass);
+
+        this.outlinePass = new OutlinePass(
+            new Vector2(window.innerWidth, window.innerHeight),
+            this.scene,
+            this.camera,
+            []
+        );
+        this.composer.addPass(this.outlinePass);
+
+        this._initializeEvents();
+    }
+
+    private _initializeEvents() {
+        this.eventBus.subscribeEvent(EventType.RENDERER_SCENE_ADD, (object: Object3D) => {
+            this.scene.add(object);
+        });
+        this.eventBus.subscribeEvent(EventType.RENDERER_SCENE_REMOVE, (object: Object3D) => {
+            this.scene.remove(object);
+        });
+        this.eventBus.subscribeEvent(EventType.RENDERER_SET_OUTLINED_OBJECTS, (meshes: Object3D[]) => {
+            this.outlinePass.selectedObjects = meshes;
+        });
+        this.eventBus.subscribeUniqueEvent("getCamera", () => {
+            return this.camera;
+        });
     }
 
     render() {
-        this.renderer.render(this.scene, this.camera);
+        this.eventBus.postEvent(EventType.RENDERER_ON_RENDER);
+        this.composer.render();
     }
 
     getScene() {
