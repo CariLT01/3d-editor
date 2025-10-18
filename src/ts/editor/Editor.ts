@@ -8,6 +8,7 @@ import { CustomTransformControls } from "./CustomTransformControls";
 import { EventBus, EventType } from "./EventBus";
 import { createSolid } from "./ShapeFactory";
 import { PrimitivesTopBar } from "./UserInterface/PrimitivesTopBar";
+import { SelectionManager } from "./SelectionManager";
 
 export class Editor {
 
@@ -23,6 +24,11 @@ export class Editor {
 
     // UI
     primitivesTopBar!: PrimitivesTopBar;
+
+    // Other editor systems
+    selectionManager!: SelectionManager;
+
+    // Data
 
     constructor() {
 
@@ -48,6 +54,7 @@ export class Editor {
 
         this._initializeSystems();
         this._initializeUserInterface();
+        this._initializeEvents();
     }
 
     private _initializeSystems() {
@@ -61,7 +68,16 @@ export class Editor {
         this.tree.createRoot();
 
         this.transformControls.setMode("translate");
+
+        // Editor components
+        this.selectionManager = new SelectionManager(this.eventBus);
         
+    }
+
+    private _initializeEvents() {
+        this.eventBus.subscribeEvent(EventType.SELECTION_MANAGER_SELECTION_CHANGED, (entityList) => {
+            this._updateTree();
+        })
     }
 
     private _initializeUserInterface() {
@@ -92,7 +108,7 @@ export class Editor {
         const treeElement = document.querySelector("#tree") as HTMLDivElement | null;
         if (!treeElement) return;
 
-        this.tree.renderTree(treeElement);
+        this.tree.renderTree(treeElement, this.selectionManager.getSelectedEntities());
     }
 
     run() {

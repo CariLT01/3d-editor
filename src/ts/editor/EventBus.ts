@@ -6,8 +6,15 @@ export enum EventType {
     ECS_ENTITY_ADDED,
     ECS_ENTITY_REMOVED,
     RENDERER_ON_RENDER,
-    RENDERER_SET_OUTLINED_OBJECTS
+    RENDERER_SET_OUTLINED_OBJECTS,
+    SELECTION_MANAGER_SELECTION_CHANGED,
+    TRANSFORM_CONTROLS_ATTACH_GROUP,
+    TRANSFORM_CONTROLS_DETACH_GROUP
 }
+
+const EVENTS_DONT_LOG = [
+    EventType.RENDERER_ON_RENDER
+];
 
 
 type EventCallback = (...args: any[] ) => any;
@@ -27,8 +34,12 @@ export class EventBus {
             this.subscribedEvents.set(eventType, []);
         }
 
+
+        
         const eventSubscribed = this.subscribedEvents.get(eventType) as EventCallback[];
         eventSubscribed.push(callback);
+
+        console.log("EVENTBUS: New subscriber for ", eventType);
     }
 
 
@@ -42,8 +53,16 @@ export class EventBus {
 
     postEvent(eventType: EventType, ...args: any[]) {
         if (this.subscribedEvents.get(eventType) == null) {
+            console.warn("EVENTBUS: Post of event type ", eventType, " has no subscribers")
             return;
         }
+
+        if (EVENTS_DONT_LOG.indexOf(eventType) == -1) {
+            console.log("EVENTBUS: New event posted for ", eventType, " with data: ", ...args);
+        }
+        
+        
+
         const eventSubscribed = this.subscribedEvents.get(eventType) as EventCallback[];
 
         for (const callback of eventSubscribed) {

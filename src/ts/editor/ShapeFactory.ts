@@ -1,6 +1,6 @@
 import { BufferGeometry, Mesh, MeshBasicMaterial } from "three";
 import { EntityComponentSystemScene } from "./EntityComponentSystem/EntityComponentSystemScene";
-import { ComponentTypeMap, SolidGeometryComponent } from "./EntityComponentSystem/EntityComponentSystemComponents";
+import { ComponentTypeMap, SolidGeometryComponent, TransformComponent } from "./EntityComponentSystem/EntityComponentSystemComponents";
 import { Entity } from "./EntityComponentSystem/EntityComponentSystemEntity";
 
 export function createSolid(geometry: BufferGeometry, ecs: EntityComponentSystemScene<ComponentTypeMap>) {
@@ -13,6 +13,9 @@ export function createSolid(geometry: BufferGeometry, ecs: EntityComponentSystem
 
     const newEntity = ecs.createEntity();
     newEntity.addComponent(SolidGeometryComponent, solidGeomComponent);
+    
+    const transformComponent = new TransformComponent();
+    newEntity.addComponent(TransformComponent, transformComponent);
 
     return newEntity;
     

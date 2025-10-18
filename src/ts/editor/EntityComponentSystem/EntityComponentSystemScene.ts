@@ -1,7 +1,7 @@
 import { ComponentTypeMap } from "./EntityComponentSystemComponents";
 import { Entity } from "./EntityComponentSystemEntity";
 import { RootNodeComponent } from "./EntityComponentSystemComponents";
-import { EventBus } from "../EventBus";
+import { EventBus, EventType } from "../EventBus";
 
 function generateRandomID(length: number = 256): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -28,6 +28,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
 
     constructor(eventBus: EventBus) {
         this.eventBus = eventBus;
+
     }
 
     createRoot() {
@@ -78,6 +79,8 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
             constructor.addEntity(entity);
         }
 
+        this.eventBus.postEvent(EventType.ECS_ENTITY_ADDED, entity);
+
         
     }
 
@@ -89,6 +92,9 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
         if (this.entityIdMap.get(entity.id) == undefined) {
             throw Error("Entity id not found");
         }
+
+        this.eventBus.postEvent(EventType.ECS_ENTITY_ADDED, entity);
+
         // Delete ID entry
         this.entityIdMap.delete(entity.id);
         // Delete associated components
@@ -140,6 +146,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
         toDelete.reverse().forEach(entity => {
             this.removeEntityInternal(entity);
         });
+        
     }
 
     private _createListElement(entity: Entity) {
@@ -151,7 +158,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
         return newListElement;
     }
 
-    renderTree(targetRenderElement: HTMLDivElement) {
+    renderTree(targetRenderElement: HTMLDivElement, highlightedEntities: Entity[]) {
         targetRenderElement.innerHTML = "";
 
         // Recursively build the tree
@@ -195,6 +202,10 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
                     const nodeLi = this._createListElement(childEntity);
 
                     nodeUl.appendChild(nodeLi);
+
+                    if (highlightedEntities.indexOf(childEntity) != -1) {
+                        nodeLi.classList.add("tree-highlighted");
+                    }
                     
 
                     // Append to stack
