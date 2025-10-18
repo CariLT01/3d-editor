@@ -84,7 +84,7 @@ export class EntityComponentSystemScene<ComponentTypeMap extends Record<string, 
         
     }
 
-    addSystem(componentType: new () => any, system: any) {
+    addSystem(componentType: new (...args: any[]) => any, system: any) {
         this.systemsMap.set(componentType, system);
     }
 

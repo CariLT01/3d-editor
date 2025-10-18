@@ -1,4 +1,4 @@
-import { Camera, Group, Object3D, Raycaster, Vector2 } from "three";
+import { Camera, Group, Object3D, Raycaster, Vector2, Vector3 } from "three";
 import { Entity } from "./EntityComponentSystem/EntityComponentSystemEntity";
 import { EventBus, EventType } from "./EventBus";
 import { SolidGeometryComponent } from "./EntityComponentSystem/EntityComponentSystemComponents";
@@ -77,9 +77,10 @@ export class SelectionManager {
 
 
 
-            this.selectionGroup.remove(mesh);
-            this.eventBus.postEvent(EventType.RENDERER_SCENE_ADD, mesh);
+            
+            this.eventBus.postEvent(EventType.RENDERER_SCENE_ATTACH, mesh);
             this.eventBus.postEvent(EventType.SELECTION_MANAGER_SELECTION_CHANGED, this.selectedEntities);
+
         } else {
             console.log("Adding entity to select");
             this.selectedEntities.push(target);
@@ -87,7 +88,7 @@ export class SelectionManager {
 
             this.eventBus.postEvent(EventType.SELECTION_MANAGER_SELECTION_CHANGED, this.selectedEntities);
             this.eventBus.postEvent(EventType.RENDERER_SCENE_REMOVE, mesh);
-            this.selectionGroup.add(mesh);
+            this.selectionGroup.attach(mesh);
             
         }
     }
@@ -97,7 +98,24 @@ export class SelectionManager {
             this.eventBus.postEvent(EventType.TRANSFORM_CONTROLS_ATTACH_GROUP, this.selectionGroup);
         } else {
             this.eventBus.postEvent(EventType.TRANSFORM_CONTROLS_DETACH_GROUP);
+            //this.selectionGroup.position.set(0, 0, 0);
         }
+
+        // Get avg
+        if (this.selectedEntities.length <= 0) return;
+        const averagePosition: Vector3 = new Vector3(0, 0, 0);
+        for (const entity of this.selectedEntities) {
+            const comp = entity.components.get(SolidGeometryComponent) as SolidGeometryComponent;
+            if (!comp) continue;
+            const w = new Vector3();
+            comp.mesh.getWorldPosition(w);
+            averagePosition.add(w);
+        }
+        averagePosition.divideScalar(this.selectedEntities.length);
+
+        console.log("Average position: ", averagePosition);
+        
+        this.selectionGroup.position.copy(averagePosition);
     }
 
     private _getEntityWithObject3D(entitiesList: Entity[], targetObject: Object3D) {

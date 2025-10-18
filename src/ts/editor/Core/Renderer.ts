@@ -57,6 +57,9 @@ export class EditorRenderer {
         this.eventBus.subscribeEvent(EventType.RENDERER_SET_OUTLINED_OBJECTS, (meshes: Object3D[]) => {
             this.outlinePass.selectedObjects = meshes;
         });
+        this.eventBus.subscribeEvent(EventType.RENDERER_SCENE_ATTACH, (object: Object3D) => {
+            this.scene.attach(object);
+        })
         this.eventBus.subscribeUniqueEvent("getCamera", () => {
             return this.camera;
         });

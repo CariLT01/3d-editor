@@ -1,4 +1,4 @@
-import { BoxGeometry, BufferGeometry, GridHelper, Mesh, MeshBasicMaterial, SphereGeometry } from "three";
+import { AxesHelper, BoxGeometry, BufferGeometry, GridHelper, Mesh, MeshBasicMaterial, SphereGeometry } from "three";
 import { CameraController } from "./CameraController";
 import { EditorRenderer } from "./Core/Renderer";
 import { EntityComponentSystemScene } from "./EntityComponentSystem/EntityComponentSystemScene";
@@ -9,6 +9,7 @@ import { EventBus, EventType } from "./EventBus";
 import { createSolid } from "./ShapeFactory";
 import { PrimitivesTopBar } from "./UserInterface/PrimitivesTopBar";
 import { SelectionManager } from "./SelectionManager";
+import { TransformComponentSystem } from "./EntityComponentSystem/Systems/TransformComponentSystem";
 
 export class Editor {
 
@@ -20,6 +21,7 @@ export class Editor {
     // Systems
 
     solidGeometrySystem!: SolidGeometrySystem;
+    transformComponentSystem!: TransformComponentSystem;
     eventBus: EventBus;
 
     // UI
@@ -48,8 +50,10 @@ export class Editor {
 
     private _initialize() {
         const gridHelper = new GridHelper(10, 100);
+        const axisHelper = new AxesHelper(1);
 
         this.renderer.getScene().add(gridHelper);
+        this.renderer.getScene().add(axisHelper);
 
 
         this._initializeSystems();
@@ -60,8 +64,10 @@ export class Editor {
     private _initializeSystems() {
 
         this.solidGeometrySystem = new SolidGeometrySystem(this.renderer.getScene());
+        this.transformComponentSystem = new TransformComponentSystem(this.eventBus);
 
         this.tree.addSystem(SolidGeometryComponent, this.solidGeometrySystem);
+        this.tree.addSystem(TransformComponentSystem, this.transformComponentSystem);
 
         // Initialize root node
 

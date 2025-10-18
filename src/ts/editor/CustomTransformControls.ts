@@ -1,4 +1,4 @@
-import { Box3, BoxGeometry, Camera, Group, Mesh, MeshBasicMaterial, Object3D, SphereGeometry, Vector3 } from "three";
+import { Box3, BoxGeometry, Camera, Group, Mesh, MeshBasicMaterial, Object3D, Plane, Raycaster, SphereGeometry, Vector2, Vector3 } from "three";
 import { EditorRenderer } from "./Core/Renderer";
 import { GLTF, GLTFLoader } from "three/examples/jsm/Addons.js";
 import { EventBus, EventType } from "./EventBus";
@@ -20,8 +20,30 @@ function isMesh(object: Object3D): object is Mesh {
     return (object as Mesh).isMesh === true;
 }
 
+function haveSameMaterial(obj1: Mesh, obj2: Mesh) {
+  if (!obj1.material || !obj2.material) return false;
+
+  // If both have an array of materials
+  if (Array.isArray(obj1.material) && Array.isArray(obj2.material)) {
+    if (obj1.material.length !== obj2.material.length) return false;
+    for (let i = 0; i < obj1.material.length; i++) {
+      if (obj1.material[i] !== obj2.material[i]) return false;
+    }
+    return true;
+  }
+
+  // If both have single materials
+  if (!Array.isArray(obj1.material) && !Array.isArray(obj2.material)) {
+    return obj1.material === obj2.material;
+  }
+
+  // One is array, one is not – definitely not the same
+  return false;
+}
+
 const TRANSFORM_CONTROLS_SPACING: number = 0.05;
-const TRANSFORM_CONTROLS_DISTANCE_FACTOR: number = 0.5;
+const TRANSFORM_CONTROLS_DISTANCE_FACTOR: number = 0.7;
+const TRANSFORM_CONTROLS_MOVEMENT_FACTOR: number = 0.001;
 
 export class CustomTransformControls {
     private eventBus: EventBus;
@@ -41,6 +63,21 @@ export class CustomTransformControls {
     private xAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false, depthWrite: false});
     private yAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({color: 0x0000ff, depthTest: false, depthWrite: false});
     private zAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({color: 0x00ff00, depthTest: false, depthWrite: false});
+    private axisHeldDown: Vector3 = new Vector3(0, 0, 0);
+
+    private dragStart: Vector2 = new Vector2(0, 0);
+    private dragEnd: Vector2 = new Vector2(0, 0);
+    private mousePos: Vector2 = new Vector2(0, 0);
+    private originalPosition: Vector3 = new Vector3(0, 0, 0);
+
+    private translateMeshes!: {
+        posX: Mesh,
+        posY: Mesh,
+        posZ: Mesh,
+        negX: Mesh,
+        negY: Mesh,
+        negZ: Mesh
+    };
 
 
     constructor(eventBus: EventBus) {
@@ -59,6 +96,65 @@ export class CustomTransformControls {
         });
 
         this.camera = this.eventBus.inquireSubscriberUniqueEvent("getCamera") as Camera;
+
+        window.addEventListener("mousedown", (event) => {
+            this.dragStart.set(event.pageX, event.pageY);
+
+            // Perform a raycast
+
+            const raycaster = new Raycaster();
+            raycaster.setFromCamera(this._mouseCoordsToNDC(this.dragStart), this.camera);
+            
+            let groupToTest = this.translateGroup;
+            if (this.mode == "rotate") {
+                groupToTest = this.rotateGroup;
+            }
+            if (this.mode == "scale") {
+                groupToTest = this.scaleGroup;
+            }
+
+            const intersects = raycaster.intersectObjects(groupToTest.children);
+            if (intersects.length <= 0) {
+                console.log("Custom transform controls found no intersections");
+                return;
+            };
+
+            const first = intersects[0];
+            const obj = first.object as Mesh;
+            switch (obj) {
+                case this.translateMeshes.posX: this.axisHeldDown = new Vector3(1, 0, 0); break;
+                case this.translateMeshes.posY: this.axisHeldDown = new Vector3(0, 1, 0); break;
+                case this.translateMeshes.posZ: this.axisHeldDown = new Vector3(0, 0, 1); break;
+                case this.translateMeshes.negX: this.axisHeldDown = new Vector3(-1, 0, 0); break;
+                case this.translateMeshes.negY: this.axisHeldDown = new Vector3(0, -1, 0); break;
+                case this.translateMeshes.negZ: this.axisHeldDown = new Vector3(0, 0, -1); break;
+                default:
+                    console.log("INvalid mesh clicked");
+                    return;
+            }
+
+            if (this.attachedGroup) {
+                this.attachedGroup.getWorldPosition(this.originalPosition);
+            }
+            
+
+
+        });
+        window.addEventListener("mouseup", (event) => {
+            console.log("Released mouse button")
+            this.dragEnd.set(event.pageX, event.pageY);
+            this.axisHeldDown.set(0, 0, 0);
+        });
+
+        window.addEventListener("mousemove", (event) => {
+            this.mousePos.set(event.pageX, event.pageY);
+        })
+    }
+
+    private _mouseCoordsToNDC(coord: Vector2) {
+        const x = (coord.x / window.innerWidth) * 2 - 1;
+        const y = -(coord.y / window.innerHeight) * 2 + 1;
+        return new Vector2(x, y);
     }
 
     private _clearGroup(group: Group) {
@@ -93,7 +189,7 @@ export class CustomTransformControls {
 
         // Positive X arrow
         const PositiveXMesh = this.arrowModel.clone();
-        PositiveXMesh.material = new MeshBasicMaterial({ color: 0xff0000 });
+        PositiveXMesh.material = this.xAxisMaterial;
         // Rotate from +Y to +X
         PositiveXMesh.position.set(TRANSFORM_CONTROLS_SPACING, 0, 0);
         PositiveXMesh.rotation.z = -Math.PI / 2; // -90 degrees around Z
@@ -101,31 +197,31 @@ export class CustomTransformControls {
         // Negative X arrow
         const NegativeXMesh = this.arrowModel.clone();
         NegativeXMesh.position.set(-TRANSFORM_CONTROLS_SPACING, 0, 0);
-        NegativeXMesh.material = new MeshBasicMaterial({ color: 0xff0000 });
+        NegativeXMesh.material = this.xAxisMaterial;
         // Rotate from +Y to -X
         NegativeXMesh.rotation.z = Math.PI / 2; // 90 degrees around Z
 
         // Positive Y arrow (default +Y, no rotation needed)
         const PositiveYMesh = this.arrowModel.clone();
         PositiveYMesh.position.set(0, TRANSFORM_CONTROLS_SPACING, 0);
-        PositiveYMesh.material = new MeshBasicMaterial({ color: 0x00ff00 });
+        PositiveYMesh.material = this.yAxisMaterial;
 
         // Negative Y arrow
         const NegativeYMesh = this.arrowModel.clone();
         NegativeYMesh.position.set(0, -TRANSFORM_CONTROLS_SPACING, 0);
-        NegativeYMesh.material = new MeshBasicMaterial({ color: 0x00ff00 });
+        NegativeYMesh.material = this.yAxisMaterial;
         NegativeYMesh.rotation.z = Math.PI; // flip 180 degrees around Z
 
         // Positive Z arrow
         const PositiveZMesh = this.arrowModel.clone();
         PositiveZMesh.position.set(0, 0, TRANSFORM_CONTROLS_SPACING);
-        PositiveZMesh.material = new MeshBasicMaterial({ color: 0x0000ff });
+        PositiveZMesh.material = this.zAxisMaterial;
         PositiveZMesh.rotation.x = Math.PI / 2; // rotate +Y to +Z
 
         // Negative Z arrow
         const NegativeZMesh = this.arrowModel.clone();
         NegativeZMesh.position.set(0, 0, -TRANSFORM_CONTROLS_SPACING);
-        NegativeZMesh.material = new MeshBasicMaterial({ color: 0x0000ff });
+        NegativeZMesh.material = this.zAxisMaterial;
         NegativeZMesh.rotation.x = -Math.PI / 2; // rotate +Y to -Z
 
         // Add all arrows to the group
@@ -137,6 +233,15 @@ export class CustomTransformControls {
             PositiveZMesh,
             NegativeZMesh
         );
+
+        this.translateMeshes = {
+            posX: PositiveXMesh,
+            posY: PositiveYMesh,
+            posZ: PositiveZMesh,
+            negX: NegativeXMesh,
+            negY: NegativeYMesh,
+            negZ: NegativeZMesh
+        };
 
         // Group for rotation arrows
         // TODO: rotating arrows
@@ -291,6 +396,11 @@ export class CustomTransformControls {
         this._groupAlwaysOnTop(this.rotateGroup);
         this._groupAlwaysOnTop(this.scaleGroup);
 
+        this.translateGroup.position.copy(this.attachedGroup.position);
+        this.rotateGroup.position.copy(this.attachedGroup.position);
+        this.scaleGroup.position.copy(this.attachedGroup.position);
+
+
         console.log("Added transform controls to scene");
     }
 
@@ -308,6 +418,34 @@ export class CustomTransformControls {
         this.translateGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
         this.rotateGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
         this.scaleGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+
+        // Update translate
+        if (this.mode == "translate" && this.axisHeldDown.lengthSq() > 0) {
+            const axis = this.axisHeldDown.clone().normalize();
+            const planeNormal = new Vector3().copy(axis).cross(this.camera.getWorldDirection(new Vector3())).normalize();
+            const plane = new Plane().setFromNormalAndCoplanarPoint(planeNormal, this.originalPosition);
+
+            const rayStart = new Raycaster();
+            rayStart.setFromCamera(this._mouseCoordsToNDC(this.dragStart), this.camera)
+            const rayCurrent = new Raycaster();
+            rayCurrent.setFromCamera(this._mouseCoordsToNDC(this.mousePos), this.camera)
+
+            const intersectStart = new Vector3();
+            const intersectCurrent = new Vector3();
+
+            rayStart.ray.intersectPlane(plane, intersectStart);
+            rayCurrent.ray.intersectPlane(plane, intersectCurrent);
+
+            const moveVec = intersectCurrent.clone().sub(intersectStart);
+            const signedDistance = moveVec.dot(axis);
+
+            this.attachedGroup.position.copy(this.originalPosition.clone().add(axis.multiplyScalar(signedDistance)));
+
+            this.translateGroup.position.copy(this.attachedGroup.position);
+            this.rotateGroup.position.copy(this.attachedGroup.position);
+            this.scaleGroup.position.copy(this.attachedGroup.position);
+        }
     }
 
     attachGroup(group: Group) {
@@ -317,8 +455,20 @@ export class CustomTransformControls {
         this._addToScene();
     }
     detach() {
+
+        if (!this.attachedGroup) return;
+        this.attachedGroup.traverse((obj) => {
+            const t = new Vector3();
+            obj.getWorldPosition(t);
+            obj.position.copy(t);
+
+            console.log("Copied ", t);
+        })
+
         this.attachedGroup = undefined;
         this._clearMeshes();
+
+        // Reparented to scene outside of detach() in SelectionManager
     }
 
 
