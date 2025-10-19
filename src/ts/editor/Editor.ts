@@ -27,6 +27,7 @@ export class Editor {
 
     // UI
     primitivesTopBar!: PrimitivesTopBar;
+    propertyTabManager!: PropertyTabManager;
 
     // Other editor systems
     selectionManager!: SelectionManager;
@@ -43,6 +44,7 @@ export class Editor {
         this.tree = new EntityComponentSystemScene(this.eventBus);
         this.transformControls = new CustomTransformControls(this.eventBus);
         this.primitivesTopBar = new PrimitivesTopBar(this.eventBus);
+        this.propertyTabManager = new PropertyTabManager(document.querySelector("#properties") as HTMLDivElement, this.eventBus);
 
         
 

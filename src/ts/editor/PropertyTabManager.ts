@@ -1,13 +1,28 @@
 import { Vector3 } from "three";
 import { Entity } from "./EntityComponentSystem/EntityComponentSystemEntity";
+import { EventBus, EventType } from "./EventBus";
 
 export class PropertyTabManager {
 
     private eventListeners: (() => void)[] = [];
     private propertyTab: HTMLDivElement;
+    private eventBus: EventBus;
 
-    constructor(propertyTab: HTMLDivElement) {
+    constructor(propertyTab: HTMLDivElement, eventBus: EventBus) {
         this.propertyTab = propertyTab;
+        this.eventBus = eventBus;
+
+        this._initializeEvents();
+    }
+
+    private _initializeEvents() {
+        this.eventBus.subscribeEvent(EventType.SELECTION_MANAGER_SELECTION_CHANGED, (entities: Entity[]) => {
+            if (entities.length <= 0 || entities.length > 1) {
+                this.propertyTab.innerHTML = '';
+                return;
+            };
+            this.updatePropertyTab(entities[0]);
+        })
     }
 
     private _createPropertyItem() {
@@ -46,8 +61,7 @@ export class PropertyTabManager {
             this.eventListeners.push(f);
             i.addEventListener("input", f);
         } else {
-            const i = this._createRawInput();
-            i.value = `<${type}>`;
+            i.value = `<${type}>`
         }
         return i;
     }
@@ -56,6 +70,7 @@ export class PropertyTabManager {
         
         this.propertyTab.innerHTML = '';
 
+        
         for (const [componentType, component] of entity.components) {
 
             const propItem = this._createPropertyItem();
@@ -65,7 +80,16 @@ export class PropertyTabManager {
 
             const componentTyped: object = component;
             // Hmm.. Is this going to work?
+
+            const l = Object.keys(componentTyped);
+            if (l.length == 0) {
+                console.log("Component has no properties (is an attr)");
+            }
+            console.log(componentTyped);
+            console.log(Object.entries(componentTyped));
+
             for (const [key, value] of Object.entries(componentTyped)) {
+                console.log("Create item for: ", key);
                 const item = this._createPropertyItem();
                 
                 const label = this._createLabel(key);
