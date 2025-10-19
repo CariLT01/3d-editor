@@ -1,4 +1,4 @@
-import { Box3, BoxGeometry, Camera, Group, Matrix3, Mesh, MeshBasicMaterial, Object3D, Plane, Raycaster, SphereGeometry, Vector2, Vector3 } from "three";
+import { Box3, BoxGeometry, Camera, Euler, Group, Matrix3, Mesh, MeshBasicMaterial, Object3D, Plane, Quaternion, Raycaster, SphereGeometry, Vector2, Vector3 } from "three";
 import { EditorRenderer } from "./Core/Renderer";
 import { GLTF, GLTFLoader } from "three/examples/jsm/Addons.js";
 import { EventBus, EventType } from "./EventBus";
@@ -72,6 +72,10 @@ export class CustomTransformControls {
     private dragEnd: Vector2 = new Vector2(0, 0);
     private mousePos: Vector2 = new Vector2(0, 0);
     private originalPosition: Vector3 = new Vector3(0, 0, 0);
+
+    private lastPosition: Vector3 = new Vector3(0, 0, 0);
+    private lastScale: Vector3 = new Vector3(0, 0, 0);
+    private lastRotation: Quaternion = new Quaternion(0, 0, 0, 0);
 
     private translateMeshes!: {
         posX: Mesh,
@@ -461,6 +465,7 @@ export class CustomTransformControls {
         // Update scale
         if (!this.attachedGroup) return;
 
+        
         const camera = this.camera;
         const targetPosition = new Vector3();
         this.attachedGroup.getWorldPosition(targetPosition);
@@ -494,6 +499,7 @@ export class CustomTransformControls {
             const signedDistance = moveVec.dot(axis);
 
             this.attachedGroup.position.copy(this.originalPosition.clone().add(axis.multiplyScalar(signedDistance)));
+            //this.lastPosition.copy(this.attachedGroup.position);
 
         } else if (this.mode == "scale" && this.axisHeldDown.lengthSq() > 0) {
             const axis = this.axisHeldDown.clone().normalize();
@@ -555,12 +561,23 @@ export class CustomTransformControls {
             // update matrix world after moving
             this.attachedGroup.updateMatrixWorld(true);
 
+            //this.lastScale.copy(newScale);
+
 
         }
 
         this.translateGroup.position.copy(this.attachedGroup.position);
         this.rotateGroup.position.copy(this.attachedGroup.position);
         this.scaleGroup.position.copy(this.attachedGroup.position);
+        if (this.axisHeldDown.lengthSq() > 0 && (this.lastPosition.equals(this.attachedGroup.position) == false || this.lastScale.equals(this.attachedGroup.scale) == false)) {
+            this.eventBus.postEvent(EventType.TRANSFORM_CONTROLS_TRANSFORM_UPDATED);
+        }
+        this.lastPosition.copy(this.attachedGroup.position);
+        this.lastScale.copy(this.attachedGroup.scale);
+
+
+
+        
     }
 
     attachGroup(group: Group) {

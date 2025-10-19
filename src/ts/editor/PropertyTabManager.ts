@@ -22,7 +22,10 @@ export class PropertyTabManager {
                 return;
             };
             this.updatePropertyTab(entities[0]);
-        })
+        });
+        this.eventBus.subscribeEvent(EventType.PROPERTY_TAB_MANAGER_UPDATE_PROPERTIES, (entity: Entity) => {
+            this.updatePropertyTab(entity);    
+        });
     }
 
     private _createPropertyItem() {

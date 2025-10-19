@@ -230,6 +230,9 @@ export class SelectionManager {
         this.eventBus.subscribeEvent(EventType.RENDERER_ON_RENDER, () => {
             this._onRender();
         });
+        this.eventBus.subscribeEvent(EventType.TRANSFORM_CONTROLS_TRANSFORM_UPDATED, () => {
+            this._transformUpdated();
+        })
 
         window.addEventListener("mousemove", (event) => {
             console.log("Mouse moved!");
@@ -241,6 +244,15 @@ export class SelectionManager {
             this._updateSelection();
             this._updateTransformControls();
         });
+    }
+
+    private _transformUpdated() {
+        for (const entity of this.selectedEntities) {
+            this.eventBus.postEvent(EventType.TRANSFORM_SYSTEM_TRANSFORM_UPDATED, entity);
+        }
+        if (this.selectedEntities.length > 1) return;
+        if (this.selectedEntities.length <= 0) return;
+        this.eventBus.postEvent(EventType.PROPERTY_TAB_MANAGER_UPDATE_PROPERTIES, this.selectedEntities[0]);
     }
 
     getSelectedEntities() {

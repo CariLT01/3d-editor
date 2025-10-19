@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 export class TransformComponent {
     position: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
-    rotation: THREE.Euler = new THREE.Euler(0, 0, 0);
+    rotation: THREE.Quaternion = new THREE.Quaternion(0, 0, 0);
     scale: THREE.Vector3 = new THREE.Vector3(1, 1, 1);
 }
 

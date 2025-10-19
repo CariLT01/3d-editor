@@ -33,7 +33,7 @@ export class TransformComponentSystem {
             const quat = new Quaternion();
 
             component.mesh.getWorldQuaternion(quat);
-            transformComp.rotation.setFromQuaternion(quat);
+            transformComp.rotation.copy(quat);
 
             component.mesh.getWorldScale(transformComp.scale);
         })
