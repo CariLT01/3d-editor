@@ -74,7 +74,7 @@ export class Editor {
 
         this.tree.createRoot();
 
-        this.transformControls.setMode("translate");
+        this.transformControls.setMode("scale");
 
         // Editor components
         this.selectionManager = new SelectionManager(this.eventBus);

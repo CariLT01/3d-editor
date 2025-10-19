@@ -93,16 +93,14 @@ export class SelectionManager {
     }
 
     private _updateTransformControls() {
-        if (this.selectedEntities.length > 0) {
-            this.eventBus.postEvent(EventType.TRANSFORM_CONTROLS_ATTACH_GROUP, this.selectionGroup);
-        } else {
-            this.eventBus.postEvent(EventType.TRANSFORM_CONTROLS_DETACH_GROUP);
-            //this.selectionGroup.position.set(0, 0, 0);
-        }
+
 
         // Get avg
         console.log("There are: ", this.selectedEntities.length, " entities selected");
-        if (this.selectedEntities.length <= 0) return;
+        if (this.selectedEntities.length <= 0) {
+            this.eventBus.postEvent(EventType.TRANSFORM_CONTROLS_DETACH_GROUP);
+            return;
+        };
         const averagePosition: Vector3 = new Vector3(0, 0, 0);
         for (const entity of this.selectedEntities) {
             const comp = entity.components.get(SolidGeometryComponent) as SolidGeometryComponent;
@@ -124,6 +122,13 @@ export class SelectionManager {
         });
 
         this.selectionGroup.position.copy(averagePosition);
+
+        if (this.selectedEntities.length > 0) {
+            this.eventBus.postEvent(EventType.TRANSFORM_CONTROLS_ATTACH_GROUP, this.selectionGroup);
+        } else {
+            
+            //this.selectionGroup.position.set(0, 0, 0);
+        }
     }
 
     private _getEntityWithObject3D(entitiesList: Entity[], targetObject: Object3D) {
@@ -234,6 +239,7 @@ export class SelectionManager {
         window.addEventListener("mousedown", (event) => {
             console.log("Mouse clicked!");
             this._updateSelection();
+            this._updateTransformControls();
         });
     }
 
