@@ -109,6 +109,10 @@ export class CustomTransformControls {
             this._update();
         });
 
+        this.eventBus.subscribeEvent(EventType.TRANSFORM_CONTROLS_SET_MODE, (mode: "translate" | "rotate" | "scale") => {
+            this.setMode(mode);
+        })
+
         this.camera = this.eventBus.inquireSubscriberUniqueEvent("getCamera") as Camera;
 
         window.addEventListener("mousedown", (event) => {
@@ -399,6 +403,14 @@ export class CustomTransformControls {
     setMode(mode: "translate" | "rotate" | "scale") {
 
         this.mode=mode;
+
+        
+
+        if (this.attachedGroup) {
+            const attachedGroup = this.attachedGroup;
+            this.detach();
+            this.attachGroup(attachedGroup);
+        }
 
         
     }

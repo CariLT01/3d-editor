@@ -11,6 +11,7 @@ import { PrimitivesTopBar } from "./UserInterface/PrimitivesTopBar";
 import { SelectionManager } from "./SelectionManager";
 import { TransformComponentSystem } from "./EntityComponentSystem/Systems/TransformComponentSystem";
 import { PropertyTabManager } from "./PropertyTabManager";
+import { TransformControlsModeSwitcher } from "./UserInterface/TransformControlsModeSwitcher";
 
 export class Editor {
 
@@ -28,6 +29,7 @@ export class Editor {
     // UI
     primitivesTopBar!: PrimitivesTopBar;
     propertyTabManager!: PropertyTabManager;
+    transformControlsModeSwitcher!: TransformControlsModeSwitcher;
 
     // Other editor systems
     selectionManager!: SelectionManager;
@@ -45,7 +47,7 @@ export class Editor {
         this.transformControls = new CustomTransformControls(this.eventBus);
         this.primitivesTopBar = new PrimitivesTopBar(this.eventBus);
         this.propertyTabManager = new PropertyTabManager(document.querySelector("#properties") as HTMLDivElement, this.eventBus);
-
+        this.transformControlsModeSwitcher = new TransformControlsModeSwitcher(this.eventBus);
         
 
         this._initialize();
