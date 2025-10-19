@@ -75,10 +75,9 @@ export class SelectionManager {
             this.selectedEntities.splice(index, 1);
             this.selectionChanged = true;
 
-
-
-            
             this.eventBus.postEvent(EventType.RENDERER_SCENE_ATTACH, mesh);
+            
+            
             this.eventBus.postEvent(EventType.SELECTION_MANAGER_SELECTION_CHANGED, this.selectedEntities);
 
         } else {
@@ -102,6 +101,7 @@ export class SelectionManager {
         }
 
         // Get avg
+        console.log("There are: ", this.selectedEntities.length, " entities selected");
         if (this.selectedEntities.length <= 0) return;
         const averagePosition: Vector3 = new Vector3(0, 0, 0);
         for (const entity of this.selectedEntities) {
@@ -114,7 +114,15 @@ export class SelectionManager {
         averagePosition.divideScalar(this.selectedEntities.length);
 
         console.log("Average position: ", averagePosition);
-        
+
+            // 2. Calculate the offset between the group's old position and the new average
+        const offset = averagePosition.clone().sub(this.selectionGroup.position);
+
+        // 3. Apply the opposite of the offset to all children's local positions
+        this.selectionGroup.children.forEach(child => {
+            child.position.sub(offset);
+        });
+
         this.selectionGroup.position.copy(averagePosition);
     }
 

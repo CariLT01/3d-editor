@@ -10,6 +10,7 @@ import { createSolid } from "./ShapeFactory";
 import { PrimitivesTopBar } from "./UserInterface/PrimitivesTopBar";
 import { SelectionManager } from "./SelectionManager";
 import { TransformComponentSystem } from "./EntityComponentSystem/Systems/TransformComponentSystem";
+import { PropertyTabManager } from "./PropertyTabManager";
 
 export class Editor {
 

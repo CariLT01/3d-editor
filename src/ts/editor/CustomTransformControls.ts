@@ -98,7 +98,9 @@ export class CustomTransformControls {
         this.camera = this.eventBus.inquireSubscriberUniqueEvent("getCamera") as Camera;
 
         window.addEventListener("mousedown", (event) => {
+            if (!this.attachedGroup) return;
             this.dragStart.set(event.pageX, event.pageY);
+            this.attachedGroup.getWorldPosition(this.originalPosition);
 
             // Perform a raycast
 
@@ -396,9 +398,9 @@ export class CustomTransformControls {
         this._groupAlwaysOnTop(this.rotateGroup);
         this._groupAlwaysOnTop(this.scaleGroup);
 
-        this.translateGroup.position.copy(this.attachedGroup.position);
-        this.rotateGroup.position.copy(this.attachedGroup.position);
-        this.scaleGroup.position.copy(this.attachedGroup.position);
+        this.attachedGroup.getWorldPosition(this.translateGroup.position);
+        this.attachedGroup.getWorldPosition(this.rotateGroup.position);
+        this.attachedGroup.getWorldPosition(this.scaleGroup.position);
 
 
         console.log("Added transform controls to scene");
@@ -458,11 +460,11 @@ export class CustomTransformControls {
 
         if (!this.attachedGroup) return;
         this.attachedGroup.traverse((obj) => {
-            const t = new Vector3();
-            obj.getWorldPosition(t);
-            obj.position.copy(t);
+            //const t = new Vector3();
+            //obj.getWorldPosition(t);
+            //obj.position.copy(t);
 
-            console.log("Copied ", t);
+            //console.log("Copied ", t);
         })
 
         this.attachedGroup = undefined;
