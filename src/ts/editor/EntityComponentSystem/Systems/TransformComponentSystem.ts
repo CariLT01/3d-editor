@@ -1,3 +1,4 @@
+import { Quaternion } from "three";
 import { EventBus, EventType } from "../../EventBus";
 import { SolidGeometryComponent, TransformComponent } from "../EntityComponentSystemComponents";
 import { Entity } from "../EntityComponentSystemEntity";
@@ -21,9 +22,20 @@ export class TransformComponentSystem {
                 throw new Error("No transform component");
             }
 
-            component.mesh.position.copy(transformComp.position);
+            /*component.mesh.position.copy(transformComp.position);
             component.mesh.rotation.copy(transformComp.rotation);
-            component.mesh.scale.copy(transformComp.scale);
+            component.mesh.scale.copy(transformComp.scale);*/
+
+            // Do the reverse, copy mesh position/rotation/scale into component
+
+            component.mesh.getWorldPosition(transformComp.position);
+
+            const quat = new Quaternion();
+
+            component.mesh.getWorldQuaternion(quat);
+            transformComp.rotation.setFromQuaternion(quat);
+
+            component.mesh.getWorldScale(transformComp.scale);
         })
     }
 
