@@ -28,7 +28,7 @@ export class TransformComponentSystem {
 
             // Do the reverse, copy mesh position/rotation/scale into component
 
-            component.mesh.getWorldPosition(transformComp.position);
+            //component.mesh.getWorldPosition(transformComp.position);
 
             const quat = new Quaternion();
 

@@ -1,4 +1,4 @@
-import { Box3, BoxGeometry, Camera, Euler, Group, Matrix3, Mesh, MeshBasicMaterial, Object3D, Plane, Quaternion, Raycaster, SphereGeometry, Vector2, Vector3 } from "three";
+import { Box3, BoxGeometry, Camera, Euler, Group, Matrix3, Matrix4, Mesh, MeshBasicMaterial, Object3D, Plane, Quaternion, Raycaster, SphereGeometry, Vector2, Vector3 } from "three";
 import { EditorRenderer } from "./Core/Renderer";
 import { GLTF, GLTFLoader } from "three/examples/jsm/Addons.js";
 import { EventBus, EventType } from "./EventBus";
@@ -21,24 +21,24 @@ function isMesh(object: Object3D): object is Mesh {
 }
 
 function haveSameMaterial(obj1: Mesh, obj2: Mesh) {
-  if (!obj1.material || !obj2.material) return false;
+    if (!obj1.material || !obj2.material) return false;
 
-  // If both have an array of materials
-  if (Array.isArray(obj1.material) && Array.isArray(obj2.material)) {
-    if (obj1.material.length !== obj2.material.length) return false;
-    for (let i = 0; i < obj1.material.length; i++) {
-      if (obj1.material[i] !== obj2.material[i]) return false;
+    // If both have an array of materials
+    if (Array.isArray(obj1.material) && Array.isArray(obj2.material)) {
+        if (obj1.material.length !== obj2.material.length) return false;
+        for (let i = 0; i < obj1.material.length; i++) {
+            if (obj1.material[i] !== obj2.material[i]) return false;
+        }
+        return true;
     }
-    return true;
-  }
 
-  // If both have single materials
-  if (!Array.isArray(obj1.material) && !Array.isArray(obj2.material)) {
-    return obj1.material === obj2.material;
-  }
+    // If both have single materials
+    if (!Array.isArray(obj1.material) && !Array.isArray(obj2.material)) {
+        return obj1.material === obj2.material;
+    }
 
-  // One is array, one is not – definitely not the same
-  return false;
+    // One is array, one is not – definitely not the same
+    return false;
 }
 
 const TRANSFORM_CONTROLS_SPACING: number = 0.05;
@@ -63,9 +63,9 @@ export class CustomTransformControls {
     private mode: "translate" | "rotate" | "scale" = "scale";
     private camera: Camera;
 
-    private xAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false, depthWrite: false});
-    private yAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({color: 0x0000ff, depthTest: false, depthWrite: false});
-    private zAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({color: 0x00ff00, depthTest: false, depthWrite: false});
+    private xAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({ color: 0xff0000, depthTest: false, depthWrite: false });
+    private yAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({ color: 0x0000ff, depthTest: false, depthWrite: false });
+    private zAxisMaterial: MeshBasicMaterial = new MeshBasicMaterial({ color: 0x00ff00, depthTest: false, depthWrite: false });
     private axisHeldDown: Vector3 = new Vector3(0, 0, 0);
 
     private dragStart: Vector2 = new Vector2(0, 0);
@@ -75,7 +75,11 @@ export class CustomTransformControls {
 
     private lastPosition: Vector3 = new Vector3(0, 0, 0);
     private lastScale: Vector3 = new Vector3(0, 0, 0);
+
+    private originalScale: Vector3 = new Vector3(1, 1, 1);
     private lastRotation: Quaternion = new Quaternion(0, 0, 0, 0);
+
+    private originalWorldMatrix: Matrix4 = new Matrix4()
 
     private translateMeshes!: {
         posX: Mesh,
@@ -128,13 +132,15 @@ export class CustomTransformControls {
 
             const raycaster = new Raycaster();
             raycaster.setFromCamera(this._mouseCoordsToNDC(this.dragStart), this.camera);
-            
+
             let groupToTest = this.translateGroup;
             if (this.mode == "rotate") {
                 groupToTest = this.rotateGroup;
             }
             if (this.mode == "scale") {
                 groupToTest = this.scaleGroup;
+
+
             }
 
             const intersects = raycaster.intersectObjects(groupToTest.children);
@@ -164,9 +170,23 @@ export class CustomTransformControls {
             }
 
             if (this.attachedGroup) {
-                this.attachedGroup.getWorldPosition(this.originalPosition);
+                // Store the original state BEFORE any transformation
+                this.attachedGroup.updateMatrixWorld(true);
+                this.originalPosition.copy(this.attachedGroup.position);
+                this.originalScale.copy(this.attachedGroup.scale.clone()); // Make sure to clone!
+                this.originalWorldMatrix.copy(this.attachedGroup.matrixWorld);
+
+                // Get the size of the object at its ORIGINAL scale
+                const box = new Box3().setFromObject(this.attachedGroup);
+                const worldSize = new Vector3();
+                box.getSize(worldSize);
+
+                // Convert world size to "unscaled" size for the denominator
+                this.groupSize.copy(worldSize);
+                // Divide by current scale to get size at scale 1
+                this.groupSize.divide(this.attachedGroup.scale);
             }
-            
+
 
 
         });
@@ -196,8 +216,8 @@ export class CustomTransformControls {
 
     private _groupAlwaysOnTop(group: Group) {
         console.log("Apply always on top");
-        group.traverse((obj)=> {
-            obj.renderOrder = 2**31 - 1;
+        group.traverse((obj) => {
+            obj.renderOrder = 2 ** 31 - 1;
             obj.onBeforeRender = function (renderer) { renderer.clearDepth(); };
         })
     }
@@ -406,9 +426,9 @@ export class CustomTransformControls {
 
     setMode(mode: "translate" | "rotate" | "scale") {
 
-        this.mode=mode;
+        this.mode = mode;
 
-        
+
 
         if (this.attachedGroup) {
             const attachedGroup = this.attachedGroup;
@@ -416,7 +436,7 @@ export class CustomTransformControls {
             this.attachGroup(attachedGroup);
         }
 
-        
+
     }
 
     private _addToScene() {
@@ -465,14 +485,14 @@ export class CustomTransformControls {
         // Update scale
         if (!this.attachedGroup) return;
 
-        
+
         const camera = this.camera;
         const targetPosition = new Vector3();
         this.attachedGroup.getWorldPosition(targetPosition);
 
         const distance = targetPosition.distanceTo(camera.position);
         const scaleFactor = distance * TRANSFORM_CONTROLS_DISTANCE_FACTOR;
-        
+
         this.translateGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
         this.rotateGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
         this.scaleGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
@@ -503,67 +523,111 @@ export class CustomTransformControls {
 
         } else if (this.mode == "scale" && this.axisHeldDown.lengthSq() > 0) {
             const axis = this.axisHeldDown.clone().normalize();
-            const planeNormal = new Vector3().copy(axis).cross(this.camera.getWorldDirection(new Vector3())).normalize();
-            const plane = new Plane().setFromNormalAndCoplanarPoint(planeNormal, this.originalPosition);
+            const axisAbs = new Vector3(Math.abs(axis.x), Math.abs(axis.y), Math.abs(axis.z));
+
+            // Get the bounding box in world space BEFORE scaling
+            const originalBox = new Box3().setFromObject(this.attachedGroup);
+            const originalCenter = originalBox.getCenter(new Vector3());
+            const originalSize = originalBox.getSize(new Vector3());
+
+            // 1. Setup Plane
+            const cameraDirection = this.camera.getWorldDirection(new Vector3());
+            const planeNormal = new Vector3().copy(axis).cross(cameraDirection).normalize();
+            if (planeNormal.lengthSq() < 0.001) {
+                planeNormal.copy(cameraDirection).cross(new Vector3(0, 1, 0)).normalize();
+            }
+            const plane = new Plane().setFromNormalAndCoplanarPoint(planeNormal, originalCenter);
 
             const rayStart = new Raycaster();
-            rayStart.setFromCamera(this._mouseCoordsToNDC(this.dragStart), this.camera)
             const rayCurrent = new Raycaster();
-            rayCurrent.setFromCamera(this._mouseCoordsToNDC(this.mousePos), this.camera)
+            rayStart.setFromCamera(this._mouseCoordsToNDC(this.dragStart), this.camera);
+            rayCurrent.setFromCamera(this._mouseCoordsToNDC(this.mousePos), this.camera);
 
             const intersectStart = new Vector3();
             const intersectCurrent = new Vector3();
 
-            rayStart.ray.intersectPlane(plane, intersectStart);
-            rayCurrent.ray.intersectPlane(plane, intersectCurrent);
+            if (rayStart.ray.intersectPlane(plane, intersectStart) &&
+                rayCurrent.ray.intersectPlane(plane, intersectCurrent)) {
 
-            const moveVec = intersectCurrent.clone().sub(intersectStart);
-            const signedDistance = moveVec.dot(axis) * TRNASFORM_CONTROLS_SCALING_FACTOR;
+                // 2. Calculate delta in World Space
+                const moveVec = intersectCurrent.clone().sub(intersectStart);
+                const worldDistanceMoved = moveVec.dot(axis);
 
-            // compute scale factor and clamp to avoid zero/negative scales
-            const rawScaleFactor = 1 + signedDistance;
-            const scaleFactor = Math.max(0.01, rawScaleFactor);
+                // 3. Calculate scale factor
+                const sizeAlongAxis = originalSize.dot(axisAbs);
+                const denominator = Math.max(0.001, sizeAlongAxis);
+                const factor = 1 + (worldDistanceMoved / denominator);
+                const clampedFactor = Math.max(0.001, factor);
 
-            // Determine which axis component of groupSize applies
-            const size = this.groupSize.clone(); // groupSize is in world-units from _computeSize()
-            // choose size component matching the axis (x/y/z). If axis is diagonal, this is approximate.
-            const sizeAlongAxis = Math.abs(axis.x) > 0.5 ? size.x : (Math.abs(axis.y) > 0.5 ? size.y : size.z);
+                // 4. Determine which face to keep fixed
+                // For positive axis, keep the negative face fixed
+                // For negative axis, keep the positive face fixed
+                let fixedFaceWorldPoint = new Vector3();
 
-            // Determine anchor in world space: the side opposite the dragged handle should stay fixed.
-            // If dragging positive handle (axis points +X), anchor should be at negative half; vice versa.
-            const axisSign = Math.sign(this.axisHeldDown.x || this.axisHeldDown.y || this.axisHeldDown.z);
-            const anchorOffsetWorld = axis.clone().multiplyScalar(-axisSign * sizeAlongAxis * 0.5);
-            const anchorWorld = this.originalPosition.clone().add(anchorOffsetWorld);
+                if (axis.x > 0) {
+                    fixedFaceWorldPoint.set(originalBox.min.x, originalCenter.y, originalCenter.z);
+                } else if (axis.x < 0) {
+                    fixedFaceWorldPoint.set(originalBox.max.x, originalCenter.y, originalCenter.z);
+                } else if (axis.y > 0) {
+                    fixedFaceWorldPoint.set(originalCenter.x, originalBox.min.y, originalCenter.z);
+                } else if (axis.y < 0) {
+                    fixedFaceWorldPoint.set(originalCenter.x, originalBox.max.y, originalCenter.z);
+                } else if (axis.z > 0) {
+                    fixedFaceWorldPoint.set(originalCenter.x, originalCenter.y, originalBox.min.z);
+                } else if (axis.z < 0) {
+                    fixedFaceWorldPoint.set(originalCenter.x, originalCenter.y, originalBox.max.z);
+                }
 
-            // Convert the anchor to the object's local space BEFORE scaling so we can find its new world pos after scale
-            const anchorLocal = anchorWorld.clone();
-            this.attachedGroup.worldToLocal(anchorLocal);
+                // 5. Apply Scale
+                const newScale = this.originalScale.clone();
+                if (axisAbs.x > 0.5) newScale.x *= clampedFactor;
+                if (axisAbs.y > 0.5) newScale.y *= clampedFactor;
+                if (axisAbs.z > 0.5) newScale.z *= clampedFactor;
 
-            // Apply scale only on the matching local axis components
-            const newScale = this.attachedGroup.scale.clone();
-            if (Math.abs(axis.x) > 0.5) newScale.x *= scaleFactor;
-            if (Math.abs(axis.y) > 0.5) newScale.y *= scaleFactor;
-            if (Math.abs(axis.z) > 0.5) newScale.z *= scaleFactor;
+                // Clamp scales
+                newScale.x = Math.max(0.001, newScale.x);
+                newScale.y = Math.max(0.001, newScale.y);
+                newScale.z = Math.max(0.001, newScale.z);
 
-            // apply the scale
-            this.attachedGroup.scale.copy(newScale);
+                this.attachedGroup.scale.copy(newScale);
+                this.attachedGroup.updateMatrixWorld(true);
 
-            // update matrices so matrixWorld reflects the new scale
-            this.attachedGroup.updateMatrixWorld(true);
+                // 6. Adjust position to keep the fixed face in place
+                // Get the bounding box AFTER scaling
+                const newBox = new Box3().setFromObject(this.attachedGroup);
+                const newCenter = newBox.getCenter(new Vector3());
 
-            // compute where the same local anchor now sits in world space
-            const newAnchorWorld = anchorLocal.clone().applyMatrix4(this.attachedGroup.matrixWorld);
+                // Calculate where the fixed face should be now
+                let currentFixedFacePoint = new Vector3();
 
-            // compute delta to move object so anchorWorld remains fixed
-            const delta = anchorWorld.clone().sub(newAnchorWorld);
-            this.attachedGroup.position.add(delta);
+                if (axis.x > 0) {
+                    currentFixedFacePoint.set(newBox.min.x, newCenter.y, newCenter.z);
+                } else if (axis.x < 0) {
+                    currentFixedFacePoint.set(newBox.max.x, newCenter.y, newCenter.z);
+                } else if (axis.y > 0) {
+                    currentFixedFacePoint.set(newCenter.x, newBox.min.y, newCenter.z);
+                } else if (axis.y < 0) {
+                    currentFixedFacePoint.set(newCenter.x, newBox.max.y, newCenter.z);
+                } else if (axis.z > 0) {
+                    currentFixedFacePoint.set(newCenter.x, newCenter.y, newBox.min.z);
+                } else if (axis.z < 0) {
+                    currentFixedFacePoint.set(newCenter.x, newCenter.y, newBox.max.z);
+                }
 
-            // update matrix world after moving
-            this.attachedGroup.updateMatrixWorld(true);
+                // Calculate the correction needed
+                const worldCorrection = fixedFaceWorldPoint.clone().sub(currentFixedFacePoint);
 
-            //this.lastScale.copy(newScale);
+                // Apply correction
+                if (this.attachedGroup.parent) {
+                    const parentInverse = new Matrix4().copy(this.attachedGroup.parent.matrixWorld).invert();
+                    const localCorrection = worldCorrection.clone().applyMatrix4(parentInverse);
+                    this.attachedGroup.position.add(localCorrection);
+                } else {
+                    this.attachedGroup.position.add(worldCorrection);
+                }
 
-
+                this.attachedGroup.updateMatrixWorld(true);
+            }
         }
 
         this.translateGroup.position.copy(this.attachedGroup.position);
@@ -577,11 +641,11 @@ export class CustomTransformControls {
 
 
 
-        
+
     }
 
     attachGroup(group: Group) {
-        
+
         this.attachedGroup = group;
         this._rebuild();
         this._addToScene();
